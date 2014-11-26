@@ -1,0 +1,24 @@
+#!/bin/bash
+
+serial_device=/dev/tty.usbserial-FTF06LVA
+serial_device=/dev/tty.usbserial-A10028lU
+serial_device=/dev/ttyUSB0
+
+if [ "$#" -lt 1 ]
+then
+	echo "usage: burn <hex filename> [<serial device>]"
+	exit 1
+fi
+if [ "$#" -eq 2 ]
+then
+	serial_device=$2
+fi
+
+file=$1
+
+method="-P $serial_device -b 57600"
+method="-P $serial_device -b 76800"
+method="-P $serial_device -b 38400"
+prefix="sudo "
+
+$prefix avrdude -c avrisp -p m328 $method -F -U flash:w:${file}:i 

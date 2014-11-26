@@ -1,0 +1,6 @@
+# DO NOT DELETE
+
+usart.o: /usr/include/stdio.h /usr/include/features.h
+usart.o: /usr/include/stdc-predef.h /usr/include/libio.h
+usart.o: /usr/include/_G_config.h /usr/include/wchar.h /usr/include/xlocale.h
+usart.o: global.h usart.h

@@ -1,0 +1,9 @@
+# DO NOT DELETE
+
+usart.o: /usr/include/stdio.h /usr/include/features.h
+usart.o: /usr/include/stdc-predef.h /usr/include/libio.h
+usart.o: /usr/include/_G_config.h /usr/include/wchar.h /usr/include/xlocale.h
+usart.o: global.h usart.h circbuf.h /usr/include/inttypes.h
+usart.o: /usr/include/stdint.h
+circbuf.o: circbuf.h /usr/include/inttypes.h /usr/include/features.h
+circbuf.o: /usr/include/stdc-predef.h /usr/include/stdint.h
