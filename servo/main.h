@@ -1,0 +1,16 @@
+#ifndef _MAIN_H_
+#define _MAIN_H_
+
+#define REG_RESET	0
+#define REG_SERVO_0_ENABLE	1
+#define REG_SERVO_0_DEGREES	2
+#define REG_SERVO_1_ENABLE	3
+#define REG_SERVO_1_DEGREES	4
+#define REG_SERVO_2_ENABLE	5
+#define REG_SERVO_2_DEGREES	6
+#define REG_SERVO_3_ENABLE	7
+#define REG_SERVO_3_DEGREES	8
+
+#define I2C_SLAVE_ADDR	0x42
+
+#endif // _MAIN_H_

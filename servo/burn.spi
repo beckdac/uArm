@@ -1,0 +1,40 @@
+#!/bin/bash
+
+AVRDUDE=/opt/local/bin/avrdude
+AVRDUDE=/home/dacb/avrdude/bin/avrdude
+
+# internal 8 MHz oscillator, selfprogramming enabled, SPI programming enabled, brown out detection disabled
+lfuse=E4
+hfuse=DF
+efuse=FE
+
+chip=attiny2313
+
+if [ "$#" -lt 1 -o "$#" -gt 2 ]
+then
+	echo "usage: burn <hex filename> [<baud rate, or 'slow'>]"
+	exit 1
+fi
+
+file=$1
+
+if [ "$#" -eq 2 ]
+then
+	if [ "$2" == "slow" ]
+	then
+		baud=1200
+	else
+		baud=$2
+	fi
+else
+	baud=115200
+fi
+
+# set fuses
+echo sudo $AVRDUDE -c ft232u -p $chip -P ft0 -e -U lfuse:w:0x$lfuse:m -U hfuse:w:0x$hfuse:m -U efuse:w:0x$efuse:m -B $baud
+sudo $AVRDUDE -c ft232u -p $chip -P ft0 -e -U lfuse:w:0x$lfuse:m -U hfuse:w:0x$hfuse:m -U efuse:w:0x$efuse:m -B $baud
+
+# upload program
+echo sudo $AVRDUDE -c ft232u -p $chip -P ft0 -e -U flash:w:${file}:i -B $baud DONE
+sudo $AVRDUDE -c ft232u -p $chip -P ft0 -e -U flash:w:${file}:i -B $baud DONE
+
