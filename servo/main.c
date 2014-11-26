@@ -32,11 +32,11 @@ void early(void) {
 uint8_t i2c_read_register(uint8_t reg) {
 	if (reg == REG_RESET) {
 		return 0xff;
-	} else if (reg % REG_ENABLE_BASE < 10) {
+	} else if (reg / REG_ENABLE_BASE == 1) {
 		return servo_is_enabled(reg % REG_ENABLE_BASE);
-	} else if (reg % REG_DEGREES_BASE < 10) {
+	} else if (reg / REG_DEGREES_BASE == 2) {
 		return servo_get_degrees(reg % REG_DEGREES_BASE);
-	} else if (reg % REG_TICKS_BASE < 10) {
+	} else if (reg / REG_TICKS_BASE == 3) {
 		return (uint8_t)servo_get_pulse_length(reg % REG_TICKS_BASE);
 	}
 	return 0xff;	// return 0xff on bad register
@@ -51,11 +51,11 @@ void i2c_write_register(uint8_t reg, uint8_t value) {
 		} else {
 			// do nothing when value == 0
 		}
-	} else if (reg % REG_ENABLE_BASE < 10) {
+	} else if (reg / REG_ENABLE_BASE == 1) {
 		return servo_enable(reg % REG_ENABLE_BASE);
-	} else if (reg % REG_DEGREES_BASE < 10) {
+	} else if (reg / REG_DEGREES_BASE == 2) {
 		return servo_set_degrees(reg % REG_DEGREES_BASE, value);
-	} else if (reg % REG_TICKS_BASE < 10) {
+	} else if (reg / REG_TICKS_BASE == 3) {
 		return servo_set_pulse_length(reg % REG_TICKS_BASE, (uint8_t)value * 8);
 	}
 	// do nothing on bad register
