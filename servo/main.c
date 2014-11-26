@@ -30,80 +30,36 @@ void early(void) {
 
 // i2c read register callback
 uint8_t i2c_read_register(uint8_t reg) {
-	switch (reg) {
-		case REG_RESET:
-			// this register always returnes 0xff
-			return 0xff;
-			break;
-		case REG_SERVO_0_ENABLE:
-			return servo_is_enabled(0);
-			break;
-		case REG_SERVO_0_DEGREES:
-			return servo_get_degrees(0);
-			break;
-		case REG_SERVO_1_ENABLE:
-			return servo_is_enabled(1);
-			break;
-		case REG_SERVO_1_DEGREES:
-			return servo_get_degrees(1);
-			break;
-		case REG_SERVO_2_ENABLE:
-			return servo_is_enabled(2);
-			break;
-		case REG_SERVO_2_DEGREES:
-			return servo_get_degrees(2);
-			break;
-		case REG_SERVO_3_ENABLE:
-			return servo_is_enabled(3);
-			break;
-		case REG_SERVO_3_DEGREES:
-			return servo_get_degrees(3);
-			break;
-		default:
-			// return 0xff on bad register
-			return 0xff;
+	if (reg == REG_RESET) {
+		return 0xff;
+	} else if (reg % REG_ENABLE_BASE < 10) {
+		return servo_is_enabled(reg % REG_ENABLE_BASE);
+	} else if (reg % REG_DEGREES_BASE < 10) {
+		return servo_get_degrees(reg % REG_DEGREES_BASE);
+	} else if (reg % REG_TICKS_BASE < 10) {
+		return (uint8_t)servo_get_pulse_length(reg % REG_TICKS_BASE);
 	}
+	return 0xff;	// return 0xff on bad register
 }
 
 // i2c write register callback
 void i2c_write_register(uint8_t reg, uint8_t value) {
-	switch (reg) {
-		case REG_RESET:
-			if (value > 0) {
-				wdt_enable(WDTO_15MS);
-				for (;;);
-			} else {
-				// do nothing when value == 0
-			}
-			break;
-		case REG_SERVO_0_ENABLE:
-			servo_enable(0);
-			break;
-		case REG_SERVO_0_DEGREES:
-			servo_set_degrees(0, value);
-			break;
-		case REG_SERVO_1_ENABLE:
-			servo_enable(1);
-			break;
-		case REG_SERVO_1_DEGREES:
-			servo_set_degrees(1, value);
-			break;
-		case REG_SERVO_2_ENABLE:
-			servo_enable(2);
-			break;
-		case REG_SERVO_2_DEGREES:
-			servo_set_degrees(2, value);
-			break;
-		case REG_SERVO_3_ENABLE:
-			servo_enable(3);
-			break;
-		case REG_SERVO_3_DEGREES:
-			servo_set_degrees(3, value);
-			break;
-		default:
-			// do nothing on bad register
-			return;
+	if (reg == REG_RESET) {
+		if (value > 0) {
+			wdt_enable(WDTO_15MS);
+			for (;;);
+		} else {
+			// do nothing when value == 0
+		}
+	} else if (reg % REG_ENABLE_BASE < 10) {
+		return servo_enable(reg % REG_ENABLE_BASE);
+	} else if (reg % REG_DEGREES_BASE < 10) {
+		return servo_set_degrees(reg % REG_DEGREES_BASE, value);
+	} else if (reg % REG_TICKS_BASE < 10) {
+		return servo_set_pulse_length(reg % REG_TICKS_BASE, (uint8_t)value * 8);
 	}
+	// do nothing on bad register
+	return;
 }
 
 int main(void) {
