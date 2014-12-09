@@ -1,4 +1,21 @@
-uArm
+LiteArm / uArm
 ====
 
-uArm firmware
+LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https://github.com/beckdac/uArm-MicroView-esp8266
+
+```
+/*
+** accepted serial commands
+** FXXX
+**	X >= 0 & X <= 255; sets servo speed
+** GX WY ZAAA [ZAAA] [ZAAA] [ZAAA] [ZAAA] [...]
+**	X == 0 || X == 1; use speed control? (false) rapid or (true) speed control move, boolean
+**	Y == 0 || Y == 1; wait? (false) no or (true) yes, boolean
+**	Z == L || Z == R || Z == O || Z == T || Z == H; left, right, rot, hrot and hand respectively
+**	AAA >= 0 && AAA <= 180; absolute location in degrees
+** MXXX
+**	XXX = 100; reset
+**	XXX = 101; print free memory
+**	XXX = 112; emergency stop
+*/
+```
