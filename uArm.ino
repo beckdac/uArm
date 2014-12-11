@@ -11,10 +11,15 @@
 
 #include <VarSpeedServo.h>
 
+#include "uartWIFI.h"
+
+// MicroView
 int SCREEN_WIDTH = uView.getLCDWidth();
 int SCREEN_HEIGHT = uView.getLCDHeight();
 MicroViewWidget *widgetL, *widgetR, *widgetRot, *widgetHRot, *widgetH;
 
+
+// Servos
 const int servoPinL = 2;
 const int servoPinR = 3;
 const int servoPinRot = 5;
@@ -39,6 +44,13 @@ void moveServo(VarSpeedServo &servo, MicroViewWidget *widget, uint8_t degrees, u
 #define	moveServoRot(degrees, servoSpeed, wait, updateDisplay)	moveServo(servoRot, widgetRot, degrees, servoSpeed, wait, updateDisplay)
 #define	moveServoHRot(degrees, servoSpeed, wait, updateDisplay)	moveServo(servoHRot, widgetHRot, degrees, servoSpeed, wait, updateDisplay)
 #define	moveServoH(degrees, servoSpeed, wait, updateDisplay)	moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay)
+
+// ESP8266
+#define SSID		"ssid"
+#define PASSWORD	"password"
+#define SERVER_PORT	2222
+WIFI wifi;
+extern int8_t chlID;
 
 // helper functions
 void softwareReset(void) {
@@ -83,10 +95,14 @@ void detachServos(void) {
 	servoH.detach();
 }
 
-void setup() {
-	// setup serial port
-	Serial.begin(9600);
+void setupESP8266(void) {
+	while (!wifi.begin());
+	wifi.Initialize(AP_STA, SSID, PASSWORD);
+	wifi.confMux(1);
+	wifi.confServer(1, SERVER_PORT);
+}
 
+void setup() {
 	// setup MicroView
 	setupMicroView();
 
@@ -99,6 +115,8 @@ void setup() {
 	moveServoRot(defaultServoPos, servoSpeed, false, false);
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
+
+	setupESP8266();
 }
 
 /*
@@ -124,8 +142,13 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 	if (!speedControl)
 		servoSpeedLocal = 0;
 
+	wifi.Send(chlID,F("parseCommandGServo"));
+	wifi.Send(chlID,*buf);
+	wifi.Send(chlID,String(*buf[0]));
+
 	if (*buf[0] == '\0')
 		return false;
+
 	switch(*buf[0]) {
 		case 'L': case 'l':
 			pos = strtoul(buf[1], &endptr, 10);
@@ -141,7 +164,7 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 					moveServoL(defaultServoPos, servoSpeedLocal, false, false);
 				}
 			} else {
-				Serial.println(F("ERROR: invalid servoL position"));
+				wifi.Send(chlID,F("ERROR: invalid servoL position"));
 			}
 			return true;
 		case 'R': case 'r':
@@ -158,7 +181,7 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 					moveServoR(defaultServoPos, servoSpeedLocal, false, false);
 				}
 			} else {
-				Serial.println(F("ERROR: invalid servoR position"));
+				wifi.Send(chlID,F("ERROR: invalid servoR position"));
 			}
 			return true;
 		case 'O': case 'o':
@@ -175,7 +198,7 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 					moveServoRot(defaultServoPos, servoSpeedLocal, false, false);
 				}
 			} else {
-				Serial.println(F("ERROR: invalid servoRot position"));
+				wifi.Send(chlID,F("ERROR: invalid servoRot position"));
 			}
 			return true;
 		case 'T': case 't':
@@ -192,7 +215,7 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 					moveServoHRot(defaultServoPos, servoSpeedLocal, false, false);
 				}
 			} else {
-				Serial.println(F("ERROR: invalid servoHRot position"));
+				wifi.Send(chlID,F("ERROR: invalid servoHRot position"));
 			}
 			return true;
 		case 'H': case 'h':
@@ -209,11 +232,11 @@ bool parseCommandGServo(char **buf, boolean speedControl, boolean wait) {
 					moveServoH(defaultServoPos, servoSpeedLocal, false, false);
 				}
 			} else {
-				Serial.println(F("ERROR: invalid servoH position"));
+				wifi.Send(chlID,F("ERROR: invalid servoH position"));
 			}
 			return true;
 		default:
-			Serial.println(F("ERROR: invalid servo identifier"));
+			wifi.Send(chlID,F("ERROR: invalid servo identifier"));
 			return false;
 	};
 	return false;
@@ -228,11 +251,14 @@ bool processCommand(char *cmd) {
 
 	if (len == 0) return false;
 
+	wifi.Send(chlID,F("processCommand"));
+	wifi.Send(chlID,cmd);
+
 	switch (buf[0]) {
 		case 'G': case 'g':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing G command code"));
+				wifi.Send(chlID,F("ERROR: missing G command code"));
 				return false;
 			}
 			if (code == 0) {
@@ -242,11 +268,11 @@ bool processCommand(char *cmd) {
 				// speed control move
 				speedControl = true;
 			} else {
-				Serial.println(F("ERROR: invalid G command code"));
+				wifi.Send(chlID,F("ERROR: invalid G command code"));
 				return false;
 			}
 			// absorb spaces
-			for (; *endptr == ' ' && *endptr == '\t'; ++endptr);
+			for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
 			// check for wait flag
 			wait = true;
 			if (*endptr == 'W' || *endptr == 'w') {
@@ -258,89 +284,71 @@ bool processCommand(char *cmd) {
 					} else if (code == 1) {
 						wait = true;
 					} else {
-						Serial.println(F("ERROR: invalid G command wait flag (bad number)"));
+						wifi.Send(chlID,F("ERROR: invalid G command wait flag (bad number)"));
 						return false;
 					}
 				} else {
-					Serial.println(F("ERROR: invalid G command wait flag (no number)"));
+					wifi.Send(chlID,F("ERROR: invalid G command wait flag (no number)"));
 					return false;
 				}
 			}
 			do {
 				// absorb spaces
-				for (; *endptr == ' ' && *endptr == '\t'; ++endptr);
+				for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
+				wifi.Send(chlID,endptr);
 			} while (parseCommandGServo(&endptr, speedControl, wait));
 			break;
 		case 'F': case 'f':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing F speed parameter"));
+				wifi.Send(chlID,F("ERROR: missing F speed parameter"));
 				return false;
 			}
 			if (code >= 0 && code <= 255) {
 				servoSpeed = code;
+				wifi.Send(chlID,F("OK"));
 				return true;
 			} else {
-				Serial.println(F("ERROR: invalid F speed parameter"));
+				wifi.Send(chlID,F("ERROR: invalid F speed parameter"));
 				return false;
 			}
 			break;
 		case 'M': case 'm':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing M address parameter"));
+				wifi.Send(chlID,F("ERROR: missing M address parameter"));
 				return false;
 			}
 			switch (code) {
 				case 100:
-					Serial.println(F("OK"));
+					wifi.Send(chlID,F("OK"));
 					softwareReset();
 					break;
 				case 101:
-					Serial.println(freeRam(), DEC);
+					wifi.Send(chlID,String(freeRam(), DEC));
 					break;
 				case 112:
 					detachServos();
-					Serial.println(F("OK"));
+					wifi.Send(chlID,F("OK"));
 					break;
 				default:
-					Serial.println(F("ERROR: invalid M address parameter"));
+					wifi.Send(chlID,F("ERROR: invalid M address parameter"));
 					return false;
 			};
 			break;
 		default:
-			Serial.println(F("ERROR: invalid command"));
+			wifi.Send(chlID,F("ERROR: invalid command"));
 			return false;
 	};
 }
 
-const uint8_t MAX_CMD_LEN = 32;
+const uint8_t MAX_CMD_LEN = 128;
+char buf[MAX_CMD_LEN + 1], c;
+uint8_t len = 0;
 
 void loop() {
-	char buf[MAX_CMD_LEN + 1], c;
-	bool suspendStore = false;
-	uint8_t i = 0;
-
-	// read to newline
-	// ignore any line that has over 32 characters
-	if (Serial.available() > 0) {
-		c = Serial.read();
-		if (c == '\n' || c == '\r') {
-			if (suspendStore == false) {
-				buf[i] = '\0';
-				processCommand(buf);
-			} else {
-				suspendStore = false;
-			}
-			i = 0;
-		} else {
-			if (i < MAX_CMD_LEN) {
-				buf[i] = c;
-				++i;
-			} else {
-				Serial.println(F("ERROR: command line too long"));
-				suspendStore = true;
-			}
-		}
+	len = wifi.ReceiveMessage(buf);
+	if (len > 0) {
+		processCommand(buf);
 	}
 }
