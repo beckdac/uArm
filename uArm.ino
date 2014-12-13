@@ -11,11 +11,16 @@
 
 #include <VarSpeedServo.h>
 
+#define USE_ESP8266_LIB
+#undef USE_ESP8266_LIB
+#ifdef USE_ESP8266_LIB
+#include "uartWIFI.h"
+#endif
+
 // MicroView
 int SCREEN_WIDTH = uView.getLCDWidth();
 int SCREEN_HEIGHT = uView.getLCDHeight();
 MicroViewWidget *widgetL, *widgetR, *widgetRot, *widgetHRot, *widgetH;
-
 
 // Servos
 const uint8_t servoPinL = 2;
@@ -108,9 +113,37 @@ void detachServos(void) {
 	servoH.detach();
 }
 
+
+// ESP8266
+#ifdef USE_ESP8266_LIB
+#define SSID       "root"
+#define PASSWORD   "conortimothy"
+
+WIFI wifi;
+extern int chlID;
+
+void setup_ESP8266(void) {
+	while (!wifi.begin());
+	while (!wifi.Initialize(STA, SSID, PASSWORD));
+	wifi.confMux(1);
+	wifi.confServer(1, 23);
+}
+
+#endif
+
+void sendMsg(String msg) {
+#ifdef USE_ESP8266_LIB
+	wifi.Send(chlID, msg);
+#else
+	Serial.print(msg);
+#endif
+}
+
 void setup() {
+	String msg;
+
 	// setup serial port
-	Serial.begin(9600);
+	Serial.begin(115200);
 
 	// setup MicroView
 	setupMicroView();
@@ -125,7 +158,12 @@ void setup() {
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
 
-	Serial.println("READY");
+#ifdef USE_ESP8266_LIB
+	// ESP8266
+	setup_ESP8266();
+#endif
+	msg = String(F("READY\n"));
+	sendMsg(msg);
 }
 
 /*
@@ -149,6 +187,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	int pos;
 	int servoSpeedLocal = servoSpeed;
 	void (*moveServoFuncPtr)(uint8_t, uint8_t, bool, bool) = NULL;
+	String msg;
 
 	if (!speedControl)
 		servoSpeedLocal = 0;
@@ -192,21 +231,20 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		} else {
 			servoMoveError = true;
 			if (*buf == endptr) {
-				Serial.print(F("ERROR: missing servo position for servo "));
-				Serial.println(servoShortName);
+				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String("\n");
 			} else {
-				Serial.print(F("ERROR: invalid servo position for servo "));
-				Serial.print(servoShortName);
-				Serial.print(F(": "));
-				Serial.println(pos, DEC);
+				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(": ") + String(pos, DEC) + String("\n");
 			}
+			sendMsg(msg);
+			return false;
 		}
 		*buf = endptr;
 		return true;
 	} else {
 		servoMoveError = true;
-		Serial.print(F("ERROR: invalid servo identifier: "));
-		Serial.println(servoShortName);
+		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String("\n");
+		sendMsg(msg);
+		return false;
 	}
 	return false;
 }
@@ -224,7 +262,7 @@ bool processCommand(char *cmd) {
 		case 'G': case 'g':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing G command code"));
+				sendMsg(F("ERROR: missing G command code"));
 				return false;
 			}
 			if (code == 0) {
@@ -234,7 +272,8 @@ bool processCommand(char *cmd) {
 				// speed control move
 				speedControl = true;
 			} else {
-				Serial.println(F("ERROR: invalid G command code"));
+				String msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String("\n");
+				sendMsg(msg);
 				return false;
 			}
 			// absorb spaces
@@ -250,12 +289,12 @@ bool processCommand(char *cmd) {
 					} else if (code == 1) {
 						wait = true;
 					} else {
-						Serial.print(F("ERROR: invalid G command wait flag, bad value: "));
-						Serial.println(code, DEC);
+						String msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String("\n");
+						sendMsg(msg);
 						return false;
 					}
 				} else {
-					Serial.println(F("ERROR: invalid G command wait flag (missing value)"));
+					sendMsg(F("ERROR: invalid G command wait flag (missing value)"));
 					return false;
 				}
 			}
@@ -270,69 +309,64 @@ bool processCommand(char *cmd) {
 				servoMoves[i].moveServoFuncPtr(servoMoves[i].pos, servoMoves[i].servoSpeed, 
 					(i == servoMoveCount - 1 ? false : wait), (i == servoMoveCount - 1 ? true : false));
 			}
-			if (i != 0)
-				Serial.println(F("OK"));
+			if (i != 0) {
+				sendMsg(F("OK"));
+			}
 			break;
 		case 'F': case 'f':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing F speed parameter"));
+				sendMsg(F("ERROR: missing F speed parameter"));
 				return false;
 			}
 			if (code >= 0 && code <= 255) {
 				servoSpeed = code;
-				Serial.println(F("OK"));
+				sendMsg(F("OK"));
 				return true;
 			} else {
-				Serial.print(F("ERROR: invalid F speed parameter: "));
-				Serial.println(code, DEC);
+				String msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String("\n");
+				sendMsg(msg);
 				return false;
 			}
 			break;
 		case 'M': case 'm':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				Serial.println(F("ERROR: missing M address parameter"));
+				sendMsg(F("ERROR: missing M address parameter"));
 				return false;
 			}
 			switch (code) {
 				case 100:
-					Serial.println(F("OK"));
+					sendMsg(F("OK"));
 					softwareReset();
 					break;
 				case 101:
-					Serial.println(freeRam(), DEC);
+					sendMsg(String(freeRam(), DEC) + String("\n"));
 					break;
-				case 102:
-					Serial.print(F("L"));
-					Serial.print(servoL.read(), DEC);
-					Serial.print(F(" R"));
-					Serial.print(servoR.read(), DEC);
-					Serial.print(F(" O"));
-					Serial.print(servoRot.read(), DEC);
-					Serial.print(F(" T"));
-					Serial.print(servoHRot.read(), DEC);
-					Serial.print(F(" H"));
-					Serial.println(servoH.read(), DEC);
-					break;
+				case 102: {
+					String msg = String(F("L")) + String(servoL.read(), DEC) +
+							String(F(" R")) + String(servoR.read(), DEC) +
+							String(F(" O")) + String(servoRot.read(), DEC) +
+							String(F(" T")) + String(servoHRot.read(), DEC) +
+							String(F(" H")) + String(servoH.read(), DEC) + String("\n");
+					sendMsg(msg);
+					break; }
 				case 112:
 					detachServos();
-					Serial.println(F("OK"));
+					sendMsg(F("OK"));
 					break;
 				case 113:
 					attachServos();
-					Serial.println(F("OK"));
+					sendMsg(F("OK"));
 					break;
 					
 				default:
-					Serial.print(F("ERROR: invalid M address parameter: "));
-					Serial.println(code, DEC);
+					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String("\n"));
 					return false;
 			};
 			break;
 		default:
-			Serial.print(F("ERROR: invalid command: "));
-			Serial.println(buf[0]);
+			sendMsg(String(F("ERROR: invalid command: ")) + String(buf[0]) + String("\n"));
 			return false;
 	};
 }
