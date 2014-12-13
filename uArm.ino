@@ -124,6 +124,8 @@ void setup() {
 	moveServoRot(defaultServoPos, servoSpeed, false, false);
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
+
+	Serial.println("READY");
 }
 
 /*
@@ -144,7 +146,7 @@ void setup() {
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	char *endptr, servoShortName;
-	uint8_t pos;
+	int pos;
 	int servoSpeedLocal = servoSpeed;
 	void (*moveServoFuncPtr)(uint8_t, uint8_t, bool, bool) = NULL;
 
@@ -193,7 +195,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 				Serial.print(F("ERROR: missing servo position for servo "));
 				Serial.println(servoShortName);
 			} else {
-				Serial.print(F("ERROR: missing servo position for servo "));
+				Serial.print(F("ERROR: invalid servo position for servo "));
 				Serial.print(servoShortName);
 				Serial.print(F(": "));
 				Serial.println(pos, DEC);
