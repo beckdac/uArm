@@ -15,7 +15,8 @@ LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https
 **	AAA >= 0 && AAA <= 180; absolute location in degrees
 ** MXXX
 **	XXX = 100; reset
-**	XXX = 101; print free memory
+**	XXX = 101; report free memory
+**	XXX = 102; report current servo destinations (if move complete then positions)
 **	XXX = 112; emergency stop
 */
 ```
