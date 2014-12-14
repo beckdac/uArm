@@ -88,7 +88,9 @@ void setupMicroView(void) {
 	uView.begin();
 	uView.clear(PAGE);
 	uView.display();
+}
 
+void setupMicroViewSliders(void) {
 	widgetL = new MicroViewSlider(0, 0, 0, 180);
 	widgetR = new MicroViewSlider(0, 10, 0, 180);
 	widgetRot = new MicroViewSlider(0, 20, 0, 180);
@@ -123,12 +125,33 @@ WIFI wifi;
 extern int chlID;
 
 void setup_ESP8266(void) {
+	uView.setCursor(0,0);
+	uView.print("wifi begin");
+	uView.display();
 	while (!wifi.begin());
-	while (!wifi.Initialize(STA, SSID, PASSWORD));
+	uView.setCursor(0,10);
+	uView.print("wifi init");
+	uView.display();
+	while (!wifi.Initialize(AP_STA, SSID, PASSWORD));
+	delay(2000);
+	String ipstring = wifi.showIP();
+	uView.setCursor(0,20);
+	uView.print(ipstring.substring(8));
+	uView.display();
+	uView.setCursor(0,30);
+	delay(1000);
+	uView.print("mux 1");
+	uView.display();
 	wifi.confMux(1);
+	delay(100);
+	uView.setCursor(0,40);
+	uView.print("server 23");
+	uView.display();
 	wifi.confServer(1, 23);
+	delay(8000);
+	uView.clear(PAGE);
+	uView.display();
 }
-
 #endif
 
 void sendMsg(String msg) {
@@ -143,12 +166,18 @@ void setup() {
 	String msg;
 
 	// setup serial port
-	Serial.begin(115200);
+	Serial.begin(9600);
 
 	// setup MicroView
 	setupMicroView();
 
+#ifdef USE_ESP8266_LIB
+	// ESP8266
+	setup_ESP8266();
+#endif
+
 	// setup servos
+	setupMicroViewSliders();
 	attachServos();
 
 	// place servo in positions
@@ -158,12 +187,9 @@ void setup() {
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
 
-#ifdef USE_ESP8266_LIB
-	// ESP8266
-	setup_ESP8266();
-#endif
-	msg = String(F("READY\n"));
-	sendMsg(msg);
+	delay(4000);
+
+	sendMsg(F("READY\n"));
 }
 
 /*
@@ -179,7 +205,8 @@ void setup() {
 **	XXX = 100; reset
 **	XXX = 101; print free memory
 **	XXX = 102; report current servo desination positions
-**	XXX = 112; emergency stop
+**	XXX = 112; emergency stop (detach servo timers)
+**	XXX = 113; reattach servo timers
 */
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
@@ -262,7 +289,7 @@ bool processCommand(char *cmd) {
 		case 'G': case 'g':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing G command code"));
+				sendMsg(F("ERROR: missing G command code\n"));
 				return false;
 			}
 			if (code == 0) {
@@ -294,7 +321,7 @@ bool processCommand(char *cmd) {
 						return false;
 					}
 				} else {
-					sendMsg(F("ERROR: invalid G command wait flag (missing value)"));
+					sendMsg(F("ERROR: invalid G command wait flag (missing value)\n"));
 					return false;
 				}
 			}
@@ -310,18 +337,20 @@ bool processCommand(char *cmd) {
 					(i == servoMoveCount - 1 ? false : wait), (i == servoMoveCount - 1 ? true : false));
 			}
 			if (i != 0) {
-				sendMsg(F("OK"));
+				sendMsg(F("OK\n"));
+				return true;
 			}
+			return false;
 			break;
 		case 'F': case 'f':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing F speed parameter"));
+				sendMsg(F("ERROR: missing F speed parameter\n"));
 				return false;
 			}
 			if (code >= 0 && code <= 255) {
 				servoSpeed = code;
-				sendMsg(F("OK"));
+				sendMsg(F("OK\n"));
 				return true;
 			} else {
 				String msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String("\n");
@@ -332,12 +361,12 @@ bool processCommand(char *cmd) {
 		case 'M': case 'm':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing M address parameter"));
+				sendMsg(F("ERROR: missing M address parameter\n"));
 				return false;
 			}
 			switch (code) {
 				case 100:
-					sendMsg(F("OK"));
+					sendMsg(F("OK\n"));
 					softwareReset();
 					break;
 				case 101:
@@ -353,31 +382,46 @@ bool processCommand(char *cmd) {
 					break; }
 				case 112:
 					detachServos();
-					sendMsg(F("OK"));
+					sendMsg(F("OK\n"));
 					break;
 				case 113:
 					attachServos();
-					sendMsg(F("OK"));
+					sendMsg(F("OK\n"));
 					break;
 					
 				default:
 					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String("\n"));
 					return false;
 			};
+			return true;
 			break;
 		default:
 			sendMsg(String(F("ERROR: invalid command: ")) + String(buf[0]) + String("\n"));
 			return false;
 	};
+	sendMsg(String(F("ERROR: Unhandled exception in processCommand\n")));
+	return false;
 }
 
 // main loop
 const uint8_t MAX_CMD_LEN = 128;
 char buf[MAX_CMD_LEN + 1], c;
+#ifndef USE_ESP8266_LIB
 bool suspendStore = false;
-uint8_t len = 0, cidx = 0;
+uint8_t cidx = 0;
+#endif
+uint8_t len = 0;
 
 void loop() {
+#ifdef USE_ESP8266_LIB
+        len = wifi.ReceiveMessage(buf);
+        if (len > 0) {
+uView.setCursor(0,0);
+uView.print(buf);
+uView.display();
+                processCommand(buf);
+        }
+#else
 	// read to newline
 	// ignore any line that has over 32 characters
 	if (Serial.available() > 0) {
@@ -395,9 +439,10 @@ void loop() {
 				buf[cidx] = c;
 				++cidx;
 			} else {
-				Serial.println(F("ERROR: command line too long"));
+				sendMsg(F("ERROR: command line too long\n"));
 				suspendStore = true;
 			}
 		}
 	}
+#endif
 }
