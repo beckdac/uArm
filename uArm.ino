@@ -38,6 +38,7 @@ void moveServo(VarSpeedServo &servo, MicroViewWidget *widget, uint8_t degrees, u
 
 typedef struct servoMove {
 	void (*moveServoFuncPtr)(uint8_t, uint8_t, bool, bool);
+	char servoShortName;
 	uint8_t pos;
 	uint8_t servoSpeed;
 } servoMoves_t;
@@ -74,6 +75,15 @@ int freeRam(void) {
 	extern int __heap_start, *__brkval; 
 	int v; 
 	return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+}
+
+void servoWidgetUpdate(void) {
+	widgetL->setValue(servoL.read());
+	widgetR->setValue(servoR.read());
+	widgetRot->setValue(servoRot.read());
+	widgetHRot->setValue(servoHRot.read());
+	widgetH->setValue(servoH.read());
+	uView.display();
 }
 
 // setup functions
@@ -183,18 +193,23 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	switch(servoShortName) {
 		case 'L': case 'l':
 			moveServoFuncPtr = &moveServoL;
+			servoShortName = 'L';
 			break;
 		case 'R': case 'r':
 			moveServoFuncPtr = &moveServoR;
+			servoShortName = 'R';
 			break;
 		case 'O': case 'o':
 			moveServoFuncPtr = &moveServoRot;
+			servoShortName = 'O';
 			break;
 		case 'T': case 't':
 			moveServoFuncPtr = &moveServoHRot;
+			servoShortName = 'T';
 			break;
 		case 'H': case 'h':
 			moveServoFuncPtr = &moveServoH;
+			servoShortName = 'H';
 			break;
 	};
 
@@ -204,6 +219,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		if (*buf != endptr && pos >= 0 && pos <= 180) {
 			for (; **buf == ' ' || **buf == '\t'; (*buf)++);
 			servoMoves[servoMoveCount].moveServoFuncPtr = moveServoFuncPtr;
+			servoMoves[servoMoveCount].servoShortName = servoShortName;
 			servoMoves[servoMoveCount].pos = pos;
 			servoMoves[servoMoveCount].servoSpeed = servoSpeedLocal;
 			servoMoveCount++;
@@ -285,8 +301,42 @@ bool processCommand(char *cmd) {
 			} while (parseCommandGServo(&endptr, speedControl, wait) && !servoMoveError);
 			for (i = 0; !servoMoveError && i < servoMoveCount; ++i) {
 				// perform this move, if the last move in the list, use the wait variable value and update display
-				servoMoves[i].moveServoFuncPtr(servoMoves[i].pos, servoMoves[i].servoSpeed, 
-					(i == servoMoveCount - 1 ? false : wait), (i == servoMoveCount - 1 ? true : false));
+				servoMoves[i].moveServoFuncPtr(servoMoves[i].pos, servoMoves[i].servoSpeed, false,
+					(i == servoMoveCount - 1 ? true : false));
+			}
+			// do software wait while updating widgets
+			if (!servoMoveError && wait) {
+				bool done = false;
+				while (!done) {
+					servoWidgetUpdate();
+					done = true;
+					for (i = 0; i < servoMoveCount; ++i) {
+						switch (servoMoves[i].servoShortName) {
+							case 'L':
+								if (servoMoves[i].pos != servoL.read())
+									done = false;
+								break;
+							case 'R':
+								if (servoMoves[i].pos != servoR.read())
+									done = false;
+								break;
+							case 'O':
+								if (servoMoves[i].pos != servoRot.read())
+									done = false;
+								break;
+							case 'T':
+								if (servoMoves[i].pos != servoHRot.read())
+									done = false;
+								break;
+							case 'H':
+								if (servoMoves[i].pos != servoH.read())
+									done = false;
+								break;
+							default:
+								break;
+						}
+					}
+				}
 			}
 			if (i != 0) {
 				sendMsg(F("OK\n"));
@@ -385,11 +435,6 @@ void loop() {
 			}
 		}
 	} else {
-		widgetL->setValue(servoL.read());
-		widgetR->setValue(servoR.read());
-		widgetRot->setValue(servoRot.read());
-		widgetHRot->setValue(servoHRot.read());
-		widgetH->setValue(servoH.read());
-		uView.display();
+		servoWidgetUpdate();
 	}
 }
