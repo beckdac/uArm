@@ -11,12 +11,6 @@
 
 #include <VarSpeedServo.h>
 
-#define USE_ESP8266_LIB
-#undef USE_ESP8266_LIB
-#ifdef USE_ESP8266_LIB
-#include "uartWIFI.h"
-#endif
-
 // MicroView
 int SCREEN_WIDTH = uView.getLCDWidth();
 int SCREEN_HEIGHT = uView.getLCDHeight();
@@ -116,51 +110,7 @@ void detachServos(void) {
 }
 
 
-// ESP8266
-#ifdef USE_ESP8266_LIB
-#define SSID       "root"
-#define PASSWORD   "conortimothy"
-
-WIFI wifi;
-extern int chlID;
-
-void setup_ESP8266(void) {
-	uView.setCursor(0,0);
-	uView.print("wifi begin");
-	uView.display();
-	while (!wifi.begin());
-	uView.setCursor(0,10);
-	uView.print("wifi init");
-	uView.display();
-	while (!wifi.Initialize(AP_STA, SSID, PASSWORD));
-	delay(2000);
-	String ipstring = wifi.showIP();
-	uView.setCursor(0,20);
-	uView.print(ipstring.substring(8));
-	uView.display();
-	uView.setCursor(0,30);
-	delay(1000);
-	uView.print("mux 1");
-	uView.display();
-	wifi.confMux(1);
-	delay(100);
-	uView.setCursor(0,40);
-	uView.print("server 23");
-	uView.display();
-	wifi.confServer(1, 23);
-	delay(8000);
-	uView.clear(PAGE);
-	uView.display();
-}
-#endif
-
-void sendMsg(String msg) {
-#ifdef USE_ESP8266_LIB
-	wifi.Send(chlID, msg);
-#else
-	Serial.print(msg);
-#endif
-}
+#define sendMsg(msg) Serial.print(msg)
 
 void setup() {
 	String msg;
@@ -170,11 +120,6 @@ void setup() {
 
 	// setup MicroView
 	setupMicroView();
-
-#ifdef USE_ESP8266_LIB
-	// ESP8266
-	setup_ESP8266();
-#endif
 
 	// setup servos
 	setupMicroViewSliders();
@@ -406,19 +351,11 @@ bool processCommand(char *cmd) {
 // main loop
 const uint8_t MAX_CMD_LEN = 128;
 char buf[MAX_CMD_LEN + 1], c;
-#ifndef USE_ESP8266_LIB
 bool suspendStore = false;
 uint8_t cidx = 0;
-#endif
 uint8_t len = 0;
 
 void loop() {
-#ifdef USE_ESP8266_LIB
-        len = wifi.ReceiveMessage(buf);
-        if (len > 0) {
-                processCommand(buf);
-        }
-#else
 	// read to newline
 	// ignore any line that has over 32 characters
 	if (Serial.available() > 0) {
@@ -441,5 +378,4 @@ void loop() {
 			}
 		}
 	}
-#endif
 }
