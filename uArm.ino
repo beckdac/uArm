@@ -416,9 +416,6 @@ void loop() {
 #ifdef USE_ESP8266_LIB
         len = wifi.ReceiveMessage(buf);
         if (len > 0) {
-uView.setCursor(0,0);
-uView.print(buf);
-uView.display();
                 processCommand(buf);
         }
 #else
