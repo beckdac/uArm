@@ -114,12 +114,21 @@ void detachServos(void) {
 
 void setup() {
 	String msg;
+	uint8_t i;
 
 	// setup serial port
-	Serial.begin(9600);
+	Serial.begin(115200);
 
 	// setup MicroView
 	setupMicroView();
+
+	// boot pause
+	for (i = 0; i < 8; ++i) {
+		uView.circleFill(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, (SCREEN_WIDTH < SCREEN_HEIGHT ? SCREEN_WIDTH : SCREEN_HEIGHT) / 2 / (i + 2), (i % 2 == 0 ? WHITE : BLACK), NORM);
+		uView.display();
+		delay(500);
+	}
+	uView.clear(PAGE);
 
 	// setup servos
 	setupMicroViewSliders();
@@ -131,8 +140,6 @@ void setup() {
 	moveServoRot(defaultServoPos, servoSpeed, false, false);
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
-
-	delay(4000);
 
 	sendMsg(F("READY\n"));
 }
