@@ -203,9 +203,9 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		} else {
 			servoMoveError = true;
 			if (*buf == endptr) {
-				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String("\n");
+				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String(F("\n"));
 			} else {
-				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(": ") + String(pos, DEC) + String("\n");
+				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(F(": ")) + String(pos, DEC) + String(F("\n"));
 			}
 			sendMsg(msg);
 			return false;
@@ -214,7 +214,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		return true;
 	} else {
 		servoMoveError = true;
-		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String("\n");
+		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String(F("\n"));
 		sendMsg(msg);
 		return false;
 	}
@@ -244,7 +244,7 @@ bool processCommand(char *cmd) {
 				// speed control move
 				speedControl = true;
 			} else {
-				String msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String("\n");
+				String msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String(F("\n"));
 				sendMsg(msg);
 				return false;
 			}
@@ -261,7 +261,7 @@ bool processCommand(char *cmd) {
 					} else if (code == 1) {
 						wait = true;
 					} else {
-						String msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String("\n");
+						String msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String(F("\n"));
 						sendMsg(msg);
 						return false;
 					}
@@ -298,7 +298,7 @@ bool processCommand(char *cmd) {
 				sendMsg(F("OK\n"));
 				return true;
 			} else {
-				String msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String("\n");
+				String msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String(F("\n"));
 				sendMsg(msg);
 				return false;
 			}
@@ -315,14 +315,14 @@ bool processCommand(char *cmd) {
 					softwareReset();
 					break;
 				case 101:
-					sendMsg(String(freeRam(), DEC) + String("\n"));
+					sendMsg(String(freeRam(), DEC) + String(F("\n")));
 					break;
 				case 102: {
 					String msg = String(F("L")) + String(servoL.read(), DEC) +
 							String(F(" R")) + String(servoR.read(), DEC) +
 							String(F(" O")) + String(servoRot.read(), DEC) +
 							String(F(" T")) + String(servoHRot.read(), DEC) +
-							String(F(" H")) + String(servoH.read(), DEC) + String("\n");
+							String(F(" H")) + String(servoH.read(), DEC) + String(F("\n"));
 					sendMsg(msg);
 					break; }
 				case 112:
@@ -335,13 +335,13 @@ bool processCommand(char *cmd) {
 					break;
 					
 				default:
-					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String("\n"));
+					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String(F("\n")));
 					return false;
 			};
 			return true;
 			break;
 		default:
-			sendMsg(String(F("ERROR: invalid command: ")) + String(buf[0]) + String("\n"));
+			sendMsg(String(F("ERROR: invalid command: ")) + String(buf[0]) + String(F("\n")));
 			return false;
 	};
 	sendMsg(String(F("ERROR: Unhandled exception in processCommand\n")));
