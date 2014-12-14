@@ -377,5 +377,12 @@ void loop() {
 				suspendStore = true;
 			}
 		}
+	} else {
+		widgetL->setValue(servoL.read());
+		widgetR->setValue(servoR.read());
+		widgetRot->setValue(servoRot.read());
+		widgetHRot->setValue(servoHRot.read());
+		widgetH->setValue(servoH.read());
+		uView.display();
 	}
 }
