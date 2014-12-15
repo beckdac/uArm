@@ -184,8 +184,8 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	if (*buf[0] == '\0' || *buf[0] == '\n' || *buf[0] == '\r')
 		return false;
 
-	// should this display an error?
 	if (servoMoveCount == MAX_CMD_SERVO_MOVES) {
+		sendMsg(String(F("ERROR: servo command has too many simultaneous moves, max = ")) + String(MAX_CMD_SERVO_MOVES, DEC) + String(F("\n")));
 		return false;
 	}
 
@@ -210,6 +210,19 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		case 'H': case 'h':
 			moveServoFuncPtr = &moveServoH;
 			servoShortName = 'H';
+			break;
+		case 'F': case 'f':
+			(*buf)++;
+			pos = strtoul(*buf, &endptr, 10);
+			if (pos > 0 && pos <= 255) {
+				servoSpeed = pos;
+				servoSpeedLocal = pos;
+			} else {
+				sendMsg(String(F("ERROR: invalid feed rate\n")));
+				return false;
+			}
+			*buf = endptr;
+			return true;
 			break;
 	};
 
