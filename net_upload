@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ $# -gt 0 ]; then
+	hex=$1
+else
+	echo "usage: $0 <hex file>"
+	exit 1
+fi
+
+avrdude -v -v -c avrisp -p m328p -P net:192.168.1.197:23 -F -U flash:w:$hex:i
