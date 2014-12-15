@@ -17,15 +17,15 @@ int SCREEN_HEIGHT = uView.getLCDHeight();
 MicroViewWidget *widgetL, *widgetR, *widgetRot, *widgetHRot, *widgetH;
 
 // Servos
+#define DEFAULT_SERVO_SWEEP_SPEED 10
 const uint8_t servoPinL = 2;
 const uint8_t servoPinR = 3;
 const uint8_t servoPinRot = 5;
 const uint8_t servoPinHRot = 6;
 const uint8_t servoPinH = A0;
-const uint8_t slowSweepSpeed = 20;
 VarSpeedServo servoL, servoR, servoRot, servoHRot, servoH;
 const uint8_t defaultServoPos = 90;
-uint8_t servoSpeed = slowSweepSpeed;
+uint8_t servoSpeed = DEFAULT_SERVO_SWEEP_SPEED;
 
 void moveServo(VarSpeedServo &servo, MicroViewWidget *widget, uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
 	if (degrees >= 0 && degrees <= 180) {
@@ -77,13 +77,81 @@ int freeRam(void) {
 	return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
 
-void servoWidgetUpdate(void) {
+void servoWidgetUpdate(bool updateDisplay) {
 	widgetL->setValue(servoL.read());
 	widgetR->setValue(servoR.read());
 	widgetRot->setValue(servoRot.read());
 	widgetHRot->setValue(servoHRot.read());
 	widgetH->setValue(servoH.read());
-	uView.display();
+	if (updateDisplay)
+		uView.display();
+}
+
+#define MSG_SCROLL_LEN 32
+char messageScroll[MSG_SCROLL_LEN] = "READY";
+uint8_t messageScrollHead = 0;
+#define MSG_X_POS 59
+
+void messageScrollSet(char *buf) {
+	uint8_t i = 0;
+	for (; *buf != '\0' && *buf != '\n' && *buf != '\r' && *buf != '\t' && i < MSG_SCROLL_LEN - 1; ++buf, ++i) {
+		messageScroll[i] = *buf;
+	}
+	for (; i < MSG_SCROLL_LEN; ++i)
+		messageScroll[i] = '\0';
+	// reset the scroller on next update call
+	messageScrollHead = 0;
+}
+
+void messageScrollUpdate(bool updateDisplay) {
+	char c;
+	uint8_t i;
+
+	// reset to start of message
+	if (messageScroll[messageScrollHead] == '\0') {
+		messageScrollHead = 0;
+	}
+	i = messageScrollHead;
+	// display 5 characters
+	uView.setCursor(MSG_X_POS, 1);
+	c = messageScroll[i];
+	if (c != '\0') {
+		uView.write(c);
+	} else {
+		uView.write(' ');
+	}
+	uView.setCursor(MSG_X_POS, 11);
+	if (i + 1 < MSG_SCROLL_LEN && messageScroll[i + 1] != '\0') {
+		c = messageScroll[i + 1];
+		uView.write(c);
+	} else {
+		uView.write(' ');
+	}
+	uView.setCursor(MSG_X_POS, 21);
+	if (i + 2 < MSG_SCROLL_LEN && messageScroll[i + 2] != '\0') {
+		c = messageScroll[i + 2];
+		uView.write(c);
+	} else {
+		uView.write(' ');
+	}
+	uView.setCursor(MSG_X_POS, 31);
+	if (i + 3 < MSG_SCROLL_LEN && messageScroll[i + 3] != '\0') {
+		c = messageScroll[i + 3];
+		uView.write(c);
+	} else {
+		uView.write(' ');
+	}
+	uView.setCursor(MSG_X_POS, 41);
+	if (i + 4 < MSG_SCROLL_LEN && messageScroll[i + 4] != '\0') {
+		c = messageScroll[i + 4];
+		uView.write(c);
+	} else {
+		uView.write(' ');
+	}
+	// increment head pointer
+	messageScrollHead++;
+	if (updateDisplay)
+		uView.display();
 }
 
 // setup functions
@@ -94,12 +162,24 @@ void setupMicroView(void) {
 	uView.display();
 }
 
+#define SLIDER_LABEL_X_POS 52
+
 void setupMicroViewSliders(void) {
 	widgetL = new MicroViewSlider(0, 0, 0, 180);
+	uView.setCursor(SLIDER_LABEL_X_POS, 1);
+	uView.write('L');
 	widgetR = new MicroViewSlider(0, 10, 0, 180);
+	uView.setCursor(SLIDER_LABEL_X_POS, 11);
+	uView.write('R');
 	widgetRot = new MicroViewSlider(0, 20, 0, 180);
+	uView.setCursor(SLIDER_LABEL_X_POS, 21);
+	uView.write('O');
 	widgetHRot = new MicroViewSlider(0, 30, 0, 180);
+	uView.setCursor(SLIDER_LABEL_X_POS, 31);
+	uView.write('T');
 	widgetH = new MicroViewSlider(0, 40, 0, 180);
+	uView.setCursor(SLIDER_LABEL_X_POS, 41);
+	uView.write('H');
 }
 
 void attachServos(void) {
@@ -170,6 +250,7 @@ void setup() {
 **      XXX = 102; report current servo destinations (if move complete then positions)
 **      XXX = 112; emergency stop (detach servos)
 **      XXX = 113; emergency stop resume (reattach servos)
+**		XXX = 117; set display message
 */
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
@@ -322,7 +403,7 @@ bool processCommand(char *cmd) {
 			if (!servoMoveError && wait) {
 				bool done = false;
 				while (!done) {
-					servoWidgetUpdate();
+					servoWidgetUpdate(true);
 					done = true;
 					for (i = 0; i < servoMoveCount; ++i) {
 						switch (servoMoves[i].servoShortName) {
@@ -404,7 +485,12 @@ bool processCommand(char *cmd) {
 					attachServos();
 					sendMsg(F("OK\n"));
 					break;
-					
+				case 117:
+					// absorb spaces
+					for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
+					messageScrollSet(endptr);
+					messageScrollUpdate(true);
+					break;
 				default:
 					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String(F("\n")));
 					return false;
@@ -425,6 +511,7 @@ char buf[MAX_CMD_LEN + 1], c;
 bool suspendStore = false;
 uint8_t cidx = 0;
 uint8_t len = 0;
+uint8_t cycles = 0;
 
 void loop() {
 	// read to newline
@@ -441,14 +528,29 @@ void loop() {
 			cidx = 0;
 		} else {
 			if (cidx < MAX_CMD_LEN) {
-				buf[cidx] = c;
-				++cidx;
+				// if the first character is not printable, suspendStore and ignore the line
+				if (cidx == 0 && !isprint(c)) {
+					suspendStore = true;
+				}
+				// if suspendStore is false, then populate the command buffer
+				if (!suspendStore) {
+					buf[cidx] = c;
+					++cidx;
+				}
 			} else {
 				sendMsg(F("ERROR: command line too long\n"));
 				suspendStore = true;
 			}
 		}
 	} else {
-		servoWidgetUpdate();
+		bool updateDisplay = true;
+		if (cycles == 0)
+			updateDisplay = false;
+		servoWidgetUpdate(updateDisplay);
+		if (cycles == 0)
+			messageScrollUpdate(true);
+		cycles++;
+		if (cycles == 120)
+			cycles = 0;
 	}
 }

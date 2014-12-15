@@ -20,5 +20,6 @@ LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https
 **	XXX = 102; report current servo destinations (if move complete then positions)
 **	XXX = 112; emergency stop (detach servos)
 **	XXX = 113; emergency stop resume (reattach servos)
+**	XXX = 117; set display message
 */
 ```
