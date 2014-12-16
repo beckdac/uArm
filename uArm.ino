@@ -490,6 +490,7 @@ bool processCommand(char *cmd) {
 					for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
 					messageScrollSet(endptr);
 					messageScrollUpdate(true);
+					sendMsg(F("OK\n"));
 					break;
 				default:
 					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String(F("\n")));
