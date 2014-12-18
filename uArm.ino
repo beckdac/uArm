@@ -468,6 +468,7 @@ bool processCommand(char *cmd) {
 					break;
 				case 101:
 					sendMsg(String(freeRam(), DEC) + String(F("\n")));
+					sendMsg(F("OK\n"));
 					break;
 				case 102: {
 					String msg = String(F("L")) + String(servoL.read(), DEC) +
@@ -476,6 +477,7 @@ bool processCommand(char *cmd) {
 							String(F(" T")) + String(servoHRot.read(), DEC) +
 							String(F(" H")) + String(servoH.read(), DEC) + String(F("\n"));
 					sendMsg(msg);
+					sendMsg(F("OK\n"));
 					break; }
 				case 112:
 					detachServos();
