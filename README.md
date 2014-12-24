@@ -21,5 +21,11 @@ LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https
 **	XXX = 112; emergency stop (detach servos)
 **	XXX = 113; emergency stop resume (reattach servos)
 **	XXX = 117; set display message
+**  XXX = 500; set EEPROM configuration (i.e. servo safe limits)
+**     M500 Y ZAAA [ZAAA] [...]
+**       Y == I (min) or A (max)
+**       Z == L || Z == R || Z == O || Z == T || Z == H; left, right, rot, hrot and hand respectively
+**       AAA >= 0 && AAA <= 180; absolute location in degrees
+**  XXX = 501; get EEPROM configuration (i.e. servo safe limits)
 */
 ```

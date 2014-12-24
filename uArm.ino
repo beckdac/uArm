@@ -1,4 +1,5 @@
 #include <avr/wdt.h>
+#include <avr/eeprom.h>
 
 #include <7segment.h>
 #include <font5x7.h>
@@ -10,6 +11,45 @@
 #include <space03.h>
 
 #include <VarSpeedServo.h>
+
+// EEPROM stored configuration
+#define EEPROM_CONFIG_MAGIC	8576
+#define EEPROM_CONFIG_VERSION		1
+#define EEPROM_CONFIG_SERVO_L		0
+#define EEPROM_CONFIG_SERVO_R		1
+#define EEPROM_CONFIG_SERVO_ROT		2
+#define EEPROM_CONFIG_SERVO_HROT	3
+#define EEPROM_CONFIG_SERVO_H		4
+struct config_t {
+	uint16_t	magic;
+	uint8_t		version;
+	struct config_servoSafe_t {
+		uint8_t	min;
+		uint8_t	max;
+	}	servoSafe[5];
+} config;
+
+void eepromConfigWrite(void) {
+	eeprom_write_block((const void*)&config, (void*)0, sizeof(config));
+}
+
+void eepromConfigInitDefaults(void) {
+	uint8_t i;
+	config.magic = EEPROM_CONFIG_MAGIC;
+	config.version = EEPROM_CONFIG_VERSION;
+	for (i = 0; i < 5; ++i) {
+		config.servoSafe[i].min = 10;
+		config.servoSafe[i].max = 170;
+	}
+	eepromConfigWrite();
+}
+
+void eepromConfigRead(void) {
+	eeprom_read_block((void*)&config, (void*)0, sizeof(config));
+	if (config.magic != EEPROM_CONFIG_MAGIC || config.version != EEPROM_CONFIG_VERSION) {
+		eepromConfigInitDefaults();
+	}
+}
 
 // MicroView
 int SCREEN_WIDTH = uView.getLCDWidth();
@@ -50,19 +90,24 @@ servoMoves_t servoMoves[MAX_CMD_SERVO_MOVES];
 
 // these are functions vs macros so we can use a function pointer during parsing
 void moveServoL(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	moveServo(servoL, widgetL, degrees, servoSpeed, wait, updateDisplay);
+	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_L].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_L].max)
+		moveServo(servoL, widgetL, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoR(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	moveServo(servoR, widgetR, degrees, servoSpeed, wait, updateDisplay);
+	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_R].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_R].max)
+		moveServo(servoR, widgetR, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoRot(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	moveServo(servoRot, widgetRot, degrees, servoSpeed, wait, updateDisplay);
+	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max)
+		moveServo(servoRot, widgetRot, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoHRot(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	moveServo(servoHRot, widgetHRot, degrees, servoSpeed, wait, updateDisplay);
+	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_HROT].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max)
+		moveServo(servoHRot, widgetHRot, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay);
+	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_H].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_H].max)
+		moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay);
 }
 
 // helper functions
@@ -209,6 +254,9 @@ void setup() {
 	// setup serial port
 	Serial.begin(115200);
 
+	// load configuration from EEPROM
+	eepromConfigRead();
+
 	// setup MicroView
 	setupMicroView();
 
@@ -251,6 +299,12 @@ void setup() {
 **      XXX = 112; emergency stop (detach servos)
 **      XXX = 113; emergency stop resume (reattach servos)
 **		XXX = 117; set display message
+**		XXX = 500; set EEPROM configuration (i.e. servo safe limits)
+**					M500 Y ZAAA [ZAAA] [...]
+**					Y == I (min) or A (max)
+**					Z == L || Z == R || Z == O || Z == T || Z == H; left, right, rot, hrot and hand respectively
+**					AAA >= 0 && AAA <= 180; absolute location in degrees
+**		XXX = 501; get EEPROM configuration (i.e. servo safe limits)
 */
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
@@ -339,12 +393,75 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	return false;
 }
 
+bool parseCommandM500Servo(char **buf, bool min) {
+	char *endptr, servoShortName = '\0';
+	int pos;
+	String msg;
+	uint8_t servoID = 0;
+
+	if (*buf[0] == '\0' || *buf[0] == '\n' || *buf[0] == '\r')
+		return false;
+
+	servoShortName = *buf[0];
+	switch(servoShortName) {
+		case 'L': case 'l':
+			servoShortName = 'L';
+			servoID = EEPROM_CONFIG_SERVO_L;
+			break;
+		case 'R': case 'r':
+			servoShortName = 'R';
+			servoID = EEPROM_CONFIG_SERVO_R;
+			break;
+		case 'O': case 'o':
+			servoShortName = 'O';
+			servoID = EEPROM_CONFIG_SERVO_ROT;
+			break;
+		case 'T': case 't':
+			servoShortName = 'T';
+			servoID = EEPROM_CONFIG_SERVO_HROT;
+			break;
+		case 'H': case 'h':
+			servoShortName = 'H';
+			servoID = EEPROM_CONFIG_SERVO_H;
+			break;
+	};
+
+	if (servoShortName != '\0') {
+		(*buf)++;
+		pos = strtoul(*buf, &endptr, 10);
+		if (*buf != endptr && pos >= 0 && pos <= 180) {
+			for (; **buf == ' ' || **buf == '\t'; (*buf)++);
+			if (min) {
+				config.servoSafe[servoID].min = pos;
+			} else {
+				config.servoSafe[servoID].max = pos;
+			}
+		} else {
+			if (*buf == endptr) {
+				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String(F("\n"));
+			} else {
+				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(F(": ")) + String(pos, DEC) + String(F("\n"));
+			}
+			sendMsg(msg);
+			return false;
+		}
+		*buf = endptr;
+		return true;
+	} else {
+		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String(F("\n"));
+		sendMsg(msg);
+		return false;
+	}
+	return false;
+}
+
 bool processCommand(char *cmd) {
 	char *endptr, *buf = cmd;
 	uint8_t i, len = strlen(buf);
 	int code;
 	bool speedControl = true;
-	bool wait;
+	bool wait, min;
+	String msg;
 
 	if (len == 0) return false;
 
@@ -362,7 +479,7 @@ bool processCommand(char *cmd) {
 				// speed control move
 				speedControl = true;
 			} else {
-				String msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String(F("\n"));
+				msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String(F("\n"));
 				sendMsg(msg);
 				return false;
 			}
@@ -379,7 +496,7 @@ bool processCommand(char *cmd) {
 					} else if (code == 1) {
 						wait = true;
 					} else {
-						String msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String(F("\n"));
+						msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String(F("\n"));
 						sendMsg(msg);
 						return false;
 					}
@@ -450,7 +567,7 @@ bool processCommand(char *cmd) {
 				sendMsg(F("OK\n"));
 				return true;
 			} else {
-				String msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String(F("\n"));
+				msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String(F("\n"));
 				sendMsg(msg);
 				return false;
 			}
@@ -471,7 +588,7 @@ bool processCommand(char *cmd) {
 					sendMsg(F("OK\n"));
 					break;
 				case 102: {
-					String msg = String(F("L")) + String(servoL.read(), DEC) +
+					msg = String(F("L")) + String(servoL.read(), DEC) +
 							String(F(" R")) + String(servoR.read(), DEC) +
 							String(F(" O")) + String(servoRot.read(), DEC) +
 							String(F(" T")) + String(servoHRot.read(), DEC) +
@@ -494,6 +611,43 @@ bool processCommand(char *cmd) {
 					messageScrollUpdate(true);
 					sendMsg(F("OK\n"));
 					break;
+				case 500:
+					// absorb spaces
+					for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
+					// look for min/max flag
+					if (*endptr == 'I' || *endptr == 'i') {
+						min = true;
+					} else if (*endptr == 'A' || *endptr == 'a') {
+						min = false;
+					} else {
+						msg = String(F("ERROR: invalid M500 min/max flag, bad value: ")) + String(endptr[0]) + String(F("\n"));
+				//		msg = String(F("ERROR: fail\n"));
+						sendMsg(msg);
+						return false;
+					}
+					endptr++;
+					do {
+						// absorb spaces
+						for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
+					} while (parseCommandM500Servo(&endptr, min));
+					eepromConfigWrite();
+					sendMsg(F("OK\n"));
+					break;
+				case 501:
+					msg = String(F("MIN: L")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_L].min, DEC) +
+							String(F(" R")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_R].min, DEC) +
+							String(F(" O")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min, DEC) +
+							String(F(" T")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_HROT].min, DEC) +
+							String(F(" H")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_H].min, DEC) + String(F("\n"));
+					sendMsg(msg);
+					msg = String(F("MAX: L")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_L].max, DEC) +
+							String(F(" R")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_R].max, DEC) +
+							String(F(" O")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max, DEC) +
+							String(F(" T")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max, DEC) +
+							String(F(" H")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_H].max, DEC) + String(F("\n"));
+					sendMsg(msg);
+					sendMsg(F("OK\n"));
+					break;
 				default:
 					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String(F("\n")));
 					return false;
@@ -509,7 +663,7 @@ bool processCommand(char *cmd) {
 }
 
 // main loop
-const uint8_t MAX_CMD_LEN = 128;
+const uint8_t MAX_CMD_LEN = 64;
 char buf[MAX_CMD_LEN + 1], c;
 bool suspendStore = false;
 uint8_t cidx = 0;
