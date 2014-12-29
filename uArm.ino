@@ -1,5 +1,6 @@
 #include <avr/wdt.h>
 #include <avr/eeprom.h>
+#include <avr/pgmspace.h>
 
 #include <7segment.h>
 #include <font5x7.h>
@@ -11,6 +12,128 @@
 #include <space03.h>
 
 #include <VarSpeedServo.h>
+
+// FLASH strings
+prog_char msg_OK[] PROGMEM = "OK\n";
+prog_char msg_ERROR[] PROGMEM = "ERROR";
+prog_char msg_LF[] PROGMEM = "\n";
+prog_char msg_CSEP[] PROGMEM = ": ";
+prog_char msg_MAXMOVES[] PROGMEM = "servo command has too many simultaneous moves, max";
+prog_char msg_INVF[] PROGMEM = "invalid feed rate";
+prog_char msg_MISSP[] PROGMEM = "missing servo position for servo";
+prog_char msg_INVSP[] PROGMEM = "invalid servo position for servo";
+prog_char msg_INVS[] PROGMEM = "invalid servo identifier";
+prog_char msg_MISG[] PROGMEM = "missing G command code";
+prog_char msg_INVG[] PROGMEM = "invalid G command code";
+prog_char msg_INVW[] PROGMEM = "invalid G command wait flag, bad value";
+prog_char msg_MISW[] PROGMEM = "missing G command wait flag";
+prog_char msg_MISGF[] PROGMEM = "missing F speed parameter";
+prog_char msg_INVGF[] PROGMEM = "invalid F speed parameter";
+prog_char msg_MISM[] PROGMEM = "missing M address parameter";
+prog_char msg_INVM500[] PROGMEM = "invalid M500 min/max flag, bad value";
+prog_char msg_INVM[] PROGMEM = "invalid M address parameter";
+prog_char msg_INV[] PROGMEM = "invalid command";
+prog_char msg_TOOLONG[] PROGMEM = "command line too long";
+prog_char msg_UNKPC[] PROGMEM = "unhandled exception in processCommand";
+prog_char msg_INTEMSG[] PROGMEM = "requested message index is invalid";
+prog_char msg_READY[] PROGMEM = "READY\n";
+prog_char msg_POS[] PROGMEM = "POS";
+prog_char msg_MIN[] PROGMEM = "MIN";
+prog_char msg_MAX[] PROGMEM = "MAX";
+prog_char msg_L[] PROGMEM = "L";
+prog_char msg_R[] PROGMEM = " R";
+prog_char msg_O[] PROGMEM = " O";
+prog_char msg_T[] PROGMEM = " T";
+prog_char msg_H[] PROGMEM = " H";
+prog_char msg_SAFESP[] PROGMEM = "servo outside of safe limits in EEPROM";
+
+PROGMEM const char *msgTable[] = {
+	msg_OK,
+	msg_ERROR,
+	msg_LF,
+	msg_CSEP,
+	msg_MAXMOVES,
+	msg_INVF,
+	msg_MISSP,
+	msg_INVSP,
+	msg_INVS,
+	msg_MISG,
+	msg_INVG,
+	msg_INVW,
+	msg_MISW,
+	msg_MISGF,
+	msg_INVGF,
+	msg_MISM,
+	msg_INVM500,
+	msg_INVM,
+	msg_INV,
+	msg_TOOLONG,
+	msg_UNKPC,
+	msg_INTEMSG,
+	msg_READY,
+	msg_POS,
+	msg_MIN,
+	msg_MAX,
+	msg_L,
+	msg_R,
+	msg_O,
+	msg_T,
+	msg_H,
+	msg_SAFESP
+};
+
+#define MSG_OK		0
+#define MSG_ERROR	1
+#define MSG_LF		2
+#define MSG_CSEP	3
+#define MSG_MAXMOVES	4
+#define MSG_INVF	5
+#define MSG_MISSP	6
+#define MSG_INVSP	7
+#define MSG_INVS	8
+#define MSG_MISG	9
+#define MSG_INVG	10
+#define MSG_INVW	11
+#define MSG_MISW	12
+#define MSG_MISGF	13
+#define MSG_INVGF	14
+#define MSG_MISM	15
+#define MSG_INVM500	16
+#define MSG_INVM	17
+#define MSG_INV		18
+#define MSG_TOOLONG	19
+#define MSG_UNKPC	20
+#define MSG_INTEMSG	21
+#define MSG_READY	22
+#define MSG_POS		23
+#define MSG_MIN		24
+#define MSG_MAX		25
+#define MSG_L		26
+#define MSG_R		27
+#define MSG_O		28
+#define MSG_T		29
+#define MSG_H		30
+#define MSG_SAFESP	31
+#define MAX_MSG		MSG_SAFESP
+
+void sendMsgF(uint8_t idx) {
+	unsigned int addr;
+	char c;
+
+	if (idx > MAX_MSG) {
+		idx = MSG_INTEMSG;
+	}
+
+	addr = pgm_read_word(&msgTable[idx]);
+	while ((c = pgm_read_byte(addr++)))
+		Serial.write(c);
+}
+
+#define SEND_ERROR(msg)	sendMsgF(MSG_ERROR); sendMsgF(MSG_CSEP); sendMsgF(msg); sendMsgF(MSG_LF);
+#define SEND_ERROR_DEC(msg, num)	sendMsgF(MSG_ERROR); sendMsgF(MSG_CSEP); sendMsgF(msg); sendMsgF(MSG_CSEP); Serial.print(num, DEC); sendMsgF(MSG_LF);
+#define SEND_ERROR_CHAR(msg, ch)	sendMsgF(MSG_ERROR); sendMsgF(MSG_CSEP); sendMsgF(msg); sendMsgF(MSG_CSEP); Serial.write(ch); sendMsgF(MSG_LF);
+#define SEND_ERROR_CHAR_DEC(msg, ch, num)	sendMsgF(MSG_ERROR); sendMsgF(MSG_CSEP); sendMsgF(msg); sendMsgF(MSG_CSEP); Serial.write(ch); sendMsgF(MSG_CSEP); Serial.print(num, DEC); sendMsgF(MSG_LF);
+#define SEND_SERVO_POS(msg, L, R, O, T, H)	sendMsgF(msg); sendMsgF(MSG_CSEP); sendMsgF(MSG_L); Serial.print(L, DEC); sendMsgF(MSG_R); Serial.print(R, DEC); sendMsgF(MSG_O); Serial.print(O, DEC); sendMsgF(MSG_T); Serial.print(T, DEC); sendMsgF(MSG_H); Serial.print(H, DEC); sendMsgF(MSG_LF);
 
 // EEPROM stored configuration
 #define EEPROM_CONFIG_MAGIC	8576
@@ -90,24 +213,19 @@ servoMoves_t servoMoves[MAX_CMD_SERVO_MOVES];
 
 // these are functions vs macros so we can use a function pointer during parsing
 void moveServoL(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_L].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_L].max)
-		moveServo(servoL, widgetL, degrees, servoSpeed, wait, updateDisplay);
+	moveServo(servoL, widgetL, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoR(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_R].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_R].max)
-		moveServo(servoR, widgetR, degrees, servoSpeed, wait, updateDisplay);
+	moveServo(servoR, widgetR, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoRot(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max)
-		moveServo(servoRot, widgetRot, degrees, servoSpeed, wait, updateDisplay);
+	moveServo(servoRot, widgetRot, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoHRot(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_HROT].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max)
-		moveServo(servoHRot, widgetHRot, degrees, servoSpeed, wait, updateDisplay);
+	moveServo(servoHRot, widgetHRot, degrees, servoSpeed, wait, updateDisplay);
 }
 void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
-	if (degrees >= config.servoSafe[EEPROM_CONFIG_SERVO_H].min && degrees <= config.servoSafe[EEPROM_CONFIG_SERVO_H].max)
-		moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay);
+	moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay);
 }
 
 // helper functions
@@ -245,8 +363,6 @@ void detachServos(void) {
 }
 
 
-#define sendMsg(msg) Serial.print(msg)
-
 void setup() {
 	String msg;
 	uint8_t i;
@@ -279,7 +395,7 @@ void setup() {
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
 
-	sendMsg(F("READY\n"));
+	sendMsgF(MSG_READY);
 }
 
 /*
@@ -310,6 +426,7 @@ void setup() {
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 	char *endptr, servoShortName;
 	int pos;
+	uint8_t servoConfigIdx;
 	int servoSpeedLocal = servoSpeed;
 	void (*moveServoFuncPtr)(uint8_t, uint8_t, bool, bool) = NULL;
 	String msg;
@@ -321,7 +438,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		return false;
 
 	if (servoMoveCount == MAX_CMD_SERVO_MOVES) {
-		sendMsg(String(F("ERROR: servo command has too many simultaneous moves, max = ")) + String(MAX_CMD_SERVO_MOVES, DEC) + String(F("\n")));
+		SEND_ERROR_DEC(MSG_MAXMOVES, MAX_CMD_SERVO_MOVES);
 		return false;
 	}
 
@@ -330,22 +447,27 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		case 'L': case 'l':
 			moveServoFuncPtr = &moveServoL;
 			servoShortName = 'L';
+			servoConfigIdx = EEPROM_CONFIG_SERVO_L;
 			break;
 		case 'R': case 'r':
 			moveServoFuncPtr = &moveServoR;
 			servoShortName = 'R';
+			servoConfigIdx = EEPROM_CONFIG_SERVO_R;
 			break;
 		case 'O': case 'o':
 			moveServoFuncPtr = &moveServoRot;
 			servoShortName = 'O';
+			servoConfigIdx = EEPROM_CONFIG_SERVO_ROT;
 			break;
 		case 'T': case 't':
 			moveServoFuncPtr = &moveServoHRot;
 			servoShortName = 'T';
+			servoConfigIdx = EEPROM_CONFIG_SERVO_HROT;
 			break;
 		case 'H': case 'h':
 			moveServoFuncPtr = &moveServoH;
 			servoShortName = 'H';
+			servoConfigIdx = EEPROM_CONFIG_SERVO_H;
 			break;
 		case 'F': case 'f':
 			(*buf)++;
@@ -354,7 +476,7 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 				servoSpeed = pos;
 				servoSpeedLocal = pos;
 			} else {
-				sendMsg(String(F("ERROR: invalid feed rate\n")));
+				SEND_ERROR_DEC(MSG_INVGF, pos);
 				return false;
 			}
 			*buf = endptr;
@@ -366,6 +488,12 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		(*buf)++;
 		pos = strtoul(*buf, &endptr, 10);
 		if (*buf != endptr && pos >= 0 && pos <= 180) {
+#warning check the pos against safe ranges
+			if (pos < config.servoSafe[servoConfigIdx].min || pos > config.servoSafe[servoConfigIdx].max) {
+				SEND_ERROR_CHAR_DEC(MSG_SAFESP, servoShortName, pos);
+				servoMoveError = true;
+				return false;
+			}
 			for (; **buf == ' ' || **buf == '\t'; (*buf)++);
 			servoMoves[servoMoveCount].moveServoFuncPtr = moveServoFuncPtr;
 			servoMoves[servoMoveCount].servoShortName = servoShortName;
@@ -375,19 +503,17 @@ bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
 		} else {
 			servoMoveError = true;
 			if (*buf == endptr) {
-				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String(F("\n"));
+				SEND_ERROR_CHAR(MSG_MISSP, servoShortName);
 			} else {
-				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(F(": ")) + String(pos, DEC) + String(F("\n"));
+				SEND_ERROR_CHAR_DEC(MSG_INVSP, servoShortName, pos);
 			}
-			sendMsg(msg);
 			return false;
 		}
 		*buf = endptr;
 		return true;
 	} else {
 		servoMoveError = true;
-		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String(F("\n"));
-		sendMsg(msg);
+		SEND_ERROR_CHAR(MSG_INVS, servoShortName);
 		return false;
 	}
 	return false;
@@ -438,18 +564,16 @@ bool parseCommandM500Servo(char **buf, bool min) {
 			}
 		} else {
 			if (*buf == endptr) {
-				msg = String(F("ERROR: missing servo position for servo ")) + String(servoShortName) + String(F("\n"));
+				SEND_ERROR_CHAR(MSG_MISSP, servoShortName);
 			} else {
-				msg = String(F("ERROR: invalid servo position for servo ")) + String(servoShortName) + String(F(": ")) + String(pos, DEC) + String(F("\n"));
+				SEND_ERROR_CHAR_DEC(MSG_INVSP, servoShortName, pos);
 			}
-			sendMsg(msg);
 			return false;
 		}
 		*buf = endptr;
 		return true;
 	} else {
-		msg = String(F("ERROR: invalid servo identifier: ")) + String(servoShortName) + String(F("\n"));
-		sendMsg(msg);
+		SEND_ERROR_CHAR(MSG_INVS, servoShortName);
 		return false;
 	}
 	return false;
@@ -469,7 +593,7 @@ bool processCommand(char *cmd) {
 		case 'G': case 'g':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing G command code\n"));
+				SEND_ERROR(MSG_MISG);
 				return false;
 			}
 			if (code == 0) {
@@ -479,8 +603,7 @@ bool processCommand(char *cmd) {
 				// speed control move
 				speedControl = true;
 			} else {
-				msg = String(F("ERROR: invalid G command code: ")) + String(code, DEC) + String(F("\n"));
-				sendMsg(msg);
+				SEND_ERROR_DEC(MSG_INVG, code);
 				return false;
 			}
 			// absorb spaces
@@ -496,12 +619,11 @@ bool processCommand(char *cmd) {
 					} else if (code == 1) {
 						wait = true;
 					} else {
-						msg = String(F("ERROR: invalid G command wait flag, bad value: ")) + String(code, DEC) + String(F("\n"));
-						sendMsg(msg);
+						SEND_ERROR_DEC(MSG_INVW, code);
 						return false;
 					}
 				} else {
-					sendMsg(F("ERROR: invalid G command wait flag (missing value)\n"));
+					SEND_ERROR(MSG_MISW);
 					return false;
 				}
 			}
@@ -551,7 +673,7 @@ bool processCommand(char *cmd) {
 				}
 			}
 			if (i != 0) {
-				sendMsg(F("OK\n"));
+				sendMsgF(MSG_OK);
 				return true;
 			}
 			return false;
@@ -559,57 +681,53 @@ bool processCommand(char *cmd) {
 		case 'F': case 'f':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing F speed parameter\n"));
+				SEND_ERROR(MSG_MISGF);
 				return false;
 			}
 			if (code >= 0 && code <= 255) {
 				servoSpeed = code;
-				sendMsg(F("OK\n"));
+				sendMsgF(MSG_OK);
 				return true;
 			} else {
-				msg = String(F("ERROR: invalid F speed parameter: ")) + String(code, DEC) + String(F("\n"));
-				sendMsg(msg);
+				SEND_ERROR_DEC(MSG_INVGF, code);
 				return false;
 			}
 			break;
 		case 'M': case 'm':
 			code = strtoul(&buf[1], &endptr, 10);
 			if (endptr == &buf[1]) {
-				sendMsg(F("ERROR: missing M address parameter\n"));
+				SEND_ERROR(MSG_MISM);
 				return false;
 			}
 			switch (code) {
 				case 100:
-					sendMsg(F("OK\n"));
+					sendMsgF(MSG_OK);
+					delay(100);
 					softwareReset();
 					break;
 				case 101:
-					sendMsg(String(freeRam(), DEC) + String(F("\n")));
-					sendMsg(F("OK\n"));
+					Serial.print(freeRam(), DEC);
+					sendMsgF(MSG_LF);
+					sendMsgF(MSG_OK);
 					break;
 				case 102: {
-					msg = String(F("L")) + String(servoL.read(), DEC) +
-							String(F(" R")) + String(servoR.read(), DEC) +
-							String(F(" O")) + String(servoRot.read(), DEC) +
-							String(F(" T")) + String(servoHRot.read(), DEC) +
-							String(F(" H")) + String(servoH.read(), DEC) + String(F("\n"));
-					sendMsg(msg);
-					sendMsg(F("OK\n"));
+					SEND_SERVO_POS(MSG_POS, servoL.read(), servoR.read(), servoRot.read(), servoHRot.read(), servoH.read());
+					sendMsgF(MSG_OK);
 					break; }
 				case 112:
 					detachServos();
-					sendMsg(F("OK\n"));
+					sendMsgF(MSG_OK);
 					break;
 				case 113:
 					attachServos();
-					sendMsg(F("OK\n"));
+					sendMsgF(MSG_OK);
 					break;
 				case 117:
 					// absorb spaces
 					for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
 					messageScrollSet(endptr);
 					messageScrollUpdate(true);
-					sendMsg(F("OK\n"));
+					sendMsgF(MSG_OK);
 					break;
 				case 500:
 					// absorb spaces
@@ -620,9 +738,7 @@ bool processCommand(char *cmd) {
 					} else if (*endptr == 'A' || *endptr == 'a') {
 						min = false;
 					} else {
-						msg = String(F("ERROR: invalid M500 min/max flag, bad value: ")) + String(endptr[0]) + String(F("\n"));
-				//		msg = String(F("ERROR: fail\n"));
-						sendMsg(msg);
+						SEND_ERROR_CHAR(MSG_INVM500, endptr[0]);
 						return false;
 					}
 					endptr++;
@@ -631,34 +747,24 @@ bool processCommand(char *cmd) {
 						for (; *endptr == ' ' || *endptr == '\t'; ++endptr);
 					} while (parseCommandM500Servo(&endptr, min));
 					eepromConfigWrite();
-					sendMsg(F("OK\n"));
+					sendMsgF(MSG_OK);
 					break;
 				case 501:
-					msg = String(F("MIN: L")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_L].min, DEC) +
-							String(F(" R")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_R].min, DEC) +
-							String(F(" O")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min, DEC) +
-							String(F(" T")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_HROT].min, DEC) +
-							String(F(" H")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_H].min, DEC) + String(F("\n"));
-					sendMsg(msg);
-					msg = String(F("MAX: L")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_L].max, DEC) +
-							String(F(" R")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_R].max, DEC) +
-							String(F(" O")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max, DEC) +
-							String(F(" T")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max, DEC) +
-							String(F(" H")) + String(config.servoSafe[EEPROM_CONFIG_SERVO_H].max, DEC) + String(F("\n"));
-					sendMsg(msg);
-					sendMsg(F("OK\n"));
+					SEND_SERVO_POS(MSG_MIN, config.servoSafe[EEPROM_CONFIG_SERVO_L].min, config.servoSafe[EEPROM_CONFIG_SERVO_R].min, config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min, config.servoSafe[EEPROM_CONFIG_SERVO_HROT].min, config.servoSafe[EEPROM_CONFIG_SERVO_H].min);
+					SEND_SERVO_POS(MSG_MAX, config.servoSafe[EEPROM_CONFIG_SERVO_L].max, config.servoSafe[EEPROM_CONFIG_SERVO_R].max, config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max, config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max, config.servoSafe[EEPROM_CONFIG_SERVO_H].max);
+					sendMsgF(MSG_OK);
 					break;
 				default:
-					sendMsg(String(F("ERROR: invalid M address parameter: ")) + String(code, DEC) + String(F("\n")));
+					SEND_ERROR_DEC(MSG_INVM, code);
 					return false;
 			};
 			return true;
 			break;
 		default:
-			sendMsg(String(F("ERROR: invalid command: ")) + String(buf[0]) + String(F("\n")));
+			SEND_ERROR_CHAR(MSG_INV, buf[0]);
 			return false;
 	};
-	sendMsg(String(F("ERROR: Unhandled exception in processCommand\n")));
+	SEND_ERROR(MSG_UNKPC);
 	return false;
 }
 
@@ -695,7 +801,7 @@ void loop() {
 					++cidx;
 				}
 			} else {
-				sendMsg(F("ERROR: command line too long\n"));
+				SEND_ERROR(MSG_TOOLONG);
 				suspendStore = true;
 			}
 		}

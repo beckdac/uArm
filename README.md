@@ -29,3 +29,13 @@ LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https
 **  XXX = 501; get EEPROM configuration (i.e. servo safe limits)
 */
 ```
+
+My safe limits:
+```
+M500 I L40
+M500 A L120
+M500 I R60
+M500 A R90
+M500 I O10
+M500 A O170
+```
