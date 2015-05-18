@@ -13,41 +13,53 @@
 
 #include <VarSpeedServo.h>
 
-// FLASH strings
-prog_char msg_OK[] PROGMEM = "OK\n";
-prog_char msg_ERROR[] PROGMEM = "ERROR";
-prog_char msg_LF[] PROGMEM = "\n";
-prog_char msg_CSEP[] PROGMEM = ": ";
-prog_char msg_MAXMOVES[] PROGMEM = "servo command has too many simultaneous moves, max";
-prog_char msg_INVF[] PROGMEM = "invalid feed rate";
-prog_char msg_MISSP[] PROGMEM = "missing servo position for servo";
-prog_char msg_INVSP[] PROGMEM = "invalid servo position for servo";
-prog_char msg_INVS[] PROGMEM = "invalid servo identifier";
-prog_char msg_MISG[] PROGMEM = "missing G command code";
-prog_char msg_INVG[] PROGMEM = "invalid G command code";
-prog_char msg_INVW[] PROGMEM = "invalid G command wait flag, bad value";
-prog_char msg_MISW[] PROGMEM = "missing G command wait flag";
-prog_char msg_MISGF[] PROGMEM = "missing F speed parameter";
-prog_char msg_INVGF[] PROGMEM = "invalid F speed parameter";
-prog_char msg_MISM[] PROGMEM = "missing M address parameter";
-prog_char msg_INVM500[] PROGMEM = "invalid M500 min/max flag, bad value";
-prog_char msg_INVM[] PROGMEM = "invalid M address parameter";
-prog_char msg_INV[] PROGMEM = "invalid command";
-prog_char msg_TOOLONG[] PROGMEM = "command line too long";
-prog_char msg_UNKPC[] PROGMEM = "unhandled exception in processCommand";
-prog_char msg_INTEMSG[] PROGMEM = "requested message index is invalid";
-prog_char msg_READY[] PROGMEM = "READY\n";
-prog_char msg_POS[] PROGMEM = "POS";
-prog_char msg_MIN[] PROGMEM = "MIN";
-prog_char msg_MAX[] PROGMEM = "MAX";
-prog_char msg_L[] PROGMEM = "L";
-prog_char msg_R[] PROGMEM = " R";
-prog_char msg_O[] PROGMEM = " O";
-prog_char msg_T[] PROGMEM = " T";
-prog_char msg_H[] PROGMEM = " H";
-prog_char msg_SAFESP[] PROGMEM = "servo outside of safe limits in EEPROM";
+#include <Wire.h>
+#include <ArduinoNunchuk.h>
 
-PROGMEM const char *msgTable[] = {
+// FLASH strings
+const char msg_OK[] PROGMEM = "OK\n";
+const char msg_ERROR[] PROGMEM = "ERROR";
+const char msg_LF[] PROGMEM = "\n";
+const char msg_CSEP[] PROGMEM = ": ";
+const char msg_MAXMOVES[] PROGMEM = "servo command has too many simultaneous moves, max";
+const char msg_INVF[] PROGMEM = "invalid feed rate";
+const char msg_MISSP[] PROGMEM = "missing servo position for servo";
+const char msg_INVSP[] PROGMEM = "invalid servo position for servo";
+const char msg_INVS[] PROGMEM = "invalid servo identifier";
+const char msg_MISG[] PROGMEM = "missing G command code";
+const char msg_INVG[] PROGMEM = "invalid G command code";
+const char msg_INVW[] PROGMEM = "invalid G command wait flag, bad value";
+const char msg_MISW[] PROGMEM = "missing G command wait flag";
+const char msg_MISGF[] PROGMEM = "missing F speed parameter";
+const char msg_INVGF[] PROGMEM = "invalid F speed parameter";
+const char msg_MISM[] PROGMEM = "missing M address parameter";
+const char msg_INVM500[] PROGMEM = "invalid M500 min/max flag, bad value";
+const char msg_INVM[] PROGMEM = "invalid M address parameter";
+const char msg_INV[] PROGMEM = "invalid command";
+const char msg_TOOLONG[] PROGMEM = "command line too long";
+const char msg_UNKPC[] PROGMEM = "unhandled exception in processCommand";
+const char msg_INTEMSG[] PROGMEM = "requested message index is invalid";
+const char msg_READY[] PROGMEM = "READY\n";
+const char msg_POS[] PROGMEM = "POS";
+const char msg_MIN[] PROGMEM = "MIN";
+const char msg_MAX[] PROGMEM = "MAX";
+const char msg_L[] PROGMEM = "L";
+const char msg_R[] PROGMEM = " R";
+const char msg_O[] PROGMEM = " O";
+const char msg_T[] PROGMEM = " T";
+const char msg_H[] PROGMEM = " H";
+const char msg_SAFESP[] PROGMEM = "servo outside of safe limits in EEPROM";
+const char msg_NCM_ON[] PROGMEM = "nunchuk control mode enabled\n";
+const char msg_NCM_OFF[] PROGMEM = "nunchuk control mode disabled\n";
+const char msg_ANALOG[] PROGMEM = "ANALOG: ";
+const char msg_ACCEL[] PROGMEM = "ACCEL: ";
+const char msg_BUTTON[] PROGMEM = "BUTTON: ";
+const char msg_X[] PROGMEM = "X";
+const char msg_Y[] PROGMEM = " Y";
+const char msg_Z[] PROGMEM = " Z";
+const char msg_C[] PROGMEM = "C";
+
+const char * const msgTable[] PROGMEM = {
 	msg_OK,
 	msg_ERROR,
 	msg_LF,
@@ -79,7 +91,16 @@ PROGMEM const char *msgTable[] = {
 	msg_O,
 	msg_T,
 	msg_H,
-	msg_SAFESP
+	msg_SAFESP,
+	msg_NCM_ON,
+	msg_NCM_OFF,
+	msg_ANALOG,
+	msg_ACCEL,
+	msg_BUTTON,
+	msg_X,
+	msg_Y,
+	msg_Z,
+	msg_C
 };
 
 #define MSG_OK		0
@@ -114,7 +135,16 @@ PROGMEM const char *msgTable[] = {
 #define MSG_T		29
 #define MSG_H		30
 #define MSG_SAFESP	31
-#define MAX_MSG		MSG_SAFESP
+#define MSG_NCM_ON	32
+#define MSG_NCM_OFF	33
+#define MSG_ANALOG	34
+#define MSG_ACCEL	35
+#define MSG_BUTTON	36
+#define MSG_X		37
+#define MSG_Y		38
+#define MSG_Z		39
+#define MSG_C		40
+#define MAX_MSG		MSG_C
 
 void sendMsgF(uint8_t idx) {
 	unsigned int addr;
@@ -226,6 +256,45 @@ void moveServoHRot(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDi
 }
 void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDisplay) {
 	moveServo(servoH, widgetH, degrees, servoSpeed, wait, updateDisplay);
+}
+
+// nunchuk
+ArduinoNunchuk nunchuk = ArduinoNunchuk();
+bool nunchukControlMode = false;
+
+void nunchukControlModeToggle(void) {
+	nunchukControlMode = !nunchukControlMode;
+	if (nunchukControlMode) {
+		sendMsgF(MSG_NCM_ON);
+		messageScrollSet("nunchuk control on");
+	} else {
+		sendMsgF(MSG_NCM_OFF);
+		messageScrollSet("nunchuk control off");
+	}
+	messageScrollUpdate(true);
+	sendMsgF(MSG_OK);
+}
+
+void nunchukControlModeUpdate(bool sendValues) {
+	nunchuk.update();
+	// the Z-Button disables nunchukcontrolmode
+	if (nunchuk.zButton)
+		nunchukControlModeToggle();
+	if (sendValues) {
+		sendMsgF(MSG_ANALOG);
+		sendMsgF(MSG_X); Serial.print(nunchuk.analogX, DEC);
+		sendMsgF(MSG_Y); Serial.print(nunchuk.analogY, DEC);
+		sendMsgF(MSG_LF);
+		sendMsgF(MSG_ACCEL);
+		sendMsgF(MSG_X); Serial.print(nunchuk.accelX, DEC);
+		sendMsgF(MSG_Y); Serial.print(nunchuk.accelY, DEC);
+		sendMsgF(MSG_Z); Serial.print(nunchuk.accelZ, DEC);
+		sendMsgF(MSG_LF);
+		sendMsgF(MSG_BUTTON);
+		sendMsgF(MSG_C); Serial.print(nunchuk.cButton, DEC);
+		sendMsgF(MSG_Z); Serial.print(nunchuk.zButton, DEC);
+		sendMsgF(MSG_LF);
+	}
 }
 
 // helper functions
@@ -395,6 +464,9 @@ void setup() {
 	moveServoHRot(defaultServoPos, servoSpeed, false, false);
 	moveServoH(defaultServoPos, servoSpeed, true, true);
 
+	// initialize nunchuk
+	nunchuk.init();
+
 	sendMsgF(MSG_READY);
 }
 
@@ -421,6 +493,7 @@ void setup() {
 **					Z == L || Z == R || Z == O || Z == T || Z == H; left, right, rot, hrot and hand respectively
 **					AAA >= 0 && AAA <= 180; absolute location in degrees
 **		XXX = 501; get EEPROM configuration (i.e. servo safe limits)
+**		XXX = 576; toggle wii nunchuk control mode
 */
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
@@ -754,6 +827,9 @@ bool processCommand(char *cmd) {
 					SEND_SERVO_POS(MSG_MAX, config.servoSafe[EEPROM_CONFIG_SERVO_L].max, config.servoSafe[EEPROM_CONFIG_SERVO_R].max, config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max, config.servoSafe[EEPROM_CONFIG_SERVO_HROT].max, config.servoSafe[EEPROM_CONFIG_SERVO_H].max);
 					sendMsgF(MSG_OK);
 					break;
+				case 576:
+					nunchukControlModeToggle();
+					break;
 				default:
 					SEND_ERROR_DEC(MSG_INVM, code);
 					return false;
@@ -815,5 +891,11 @@ void loop() {
 		cycles++;
 		if (cycles == 120)
 			cycles = 0;
+
+		// if we are in the nunchuk control mode 
+		if (nunchukControlMode) {
+			// dump the values to the serial port if when we update displays
+			nunchukControlModeUpdate(cycles == 0);
+		}
 	}
 }
