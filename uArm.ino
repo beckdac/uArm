@@ -272,15 +272,17 @@ void nunchukControlModeToggle(void) {
 		messageScrollSet("nunchuk control off");
 	}
 	messageScrollUpdate(true);
-	sendMsgF(MSG_OK);
 }
 
-void nunchukControlModeUpdate(bool sendValues) {
+void nunchukControlModeUpdate() {
 	nunchuk.update();
 	// the Z-Button disables nunchukcontrolmode
 	if (nunchuk.zButton)
 		nunchukControlModeToggle();
-	if (sendValues) {
+}
+
+void nunchukControlModeSendValues(void) {
+	if (nunchukControlMode) {
 		sendMsgF(MSG_ANALOG);
 		sendMsgF(MSG_X); Serial.print(nunchuk.analogX, DEC);
 		sendMsgF(MSG_Y); Serial.print(nunchuk.analogY, DEC);
@@ -294,6 +296,8 @@ void nunchukControlModeUpdate(bool sendValues) {
 		sendMsgF(MSG_C); Serial.print(nunchuk.cButton, DEC);
 		sendMsgF(MSG_Z); Serial.print(nunchuk.zButton, DEC);
 		sendMsgF(MSG_LF);
+	} else {
+		sendMsgF(MSG_NCM_OFF);
 	}
 }
 
@@ -494,6 +498,7 @@ void setup() {
 **					AAA >= 0 && AAA <= 180; absolute location in degrees
 **		XXX = 501; get EEPROM configuration (i.e. servo safe limits)
 **		XXX = 576; toggle wii nunchuk control mode
+**		XXX = 577; send the current nunchuk readings (only valid during M576)
 */
 
 bool parseCommandGServo(char **buf, bool speedControl, bool wait) {
@@ -829,6 +834,11 @@ bool processCommand(char *cmd) {
 					break;
 				case 576:
 					nunchukControlModeToggle();
+					sendMsgF(MSG_OK);
+					break;
+				case 577:
+					nunchukControlModeSendValues();
+					sendMsgF(MSG_OK);
 					break;
 				default:
 					SEND_ERROR_DEC(MSG_INVM, code);
@@ -893,9 +903,7 @@ void loop() {
 			cycles = 0;
 
 		// if we are in the nunchuk control mode 
-		if (nunchukControlMode) {
-			// dump the values to the serial port if when we update displays
-			nunchukControlModeUpdate(cycles == 0);
-		}
+		if (nunchukControlMode)
+			nunchukControlModeUpdate();
 	}
 }
