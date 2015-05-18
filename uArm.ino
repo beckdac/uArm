@@ -268,15 +268,23 @@ void nunchukControlModeToggle(void) {
 	nunchukControlMode = !nunchukControlMode;
 	if (nunchukControlMode) {
 		sendMsgF(MSG_NCM_ON);
-		messageScrollSet("nunchuk control on");
+		messageScrollSet("NCM+");
 		nunchukControlJustEntered = true;
 	} else {
 		sendMsgF(MSG_NCM_OFF);
-		messageScrollSet("nunchuk control off");
+		messageScrollSet("NCM-");
 		nunchukControlJustExited = true;
 	}
 	messageScrollUpdate(true);
 }
+
+#define NUNCHUK_DEADZONE 5
+bool nunchukControlIsDeadzone(int x) {
+	if (x >= 127 - NUNCHUK_DEADZONE && x <= 127 + NUNCHUK_DEADZONE)
+		return true;
+	return false;
+}
+#define NUNCHUK_SWEEP_SCALE DEFAULT_SERVO_SWEEP_SPEED / 2
 
 void nunchukControlModeUpdate() {
 	nunchuk.update();
@@ -289,6 +297,26 @@ void nunchukControlModeUpdate() {
 	else  {
 		nunchukControlJustEntered = false;
 		nunchukControlJustExited = false;
+
+		Serial.print("update\n");
+		if (!nunchukControlMode)
+			return;
+		// if the stick is centered, hold the current position
+		if (nunchukControlIsDeadzone(nunchuk.analogX)) {
+			moveServo(servoRot, widgetRot, servoRot.read(), 10, false, true);
+			Serial.print("deadzone\n");
+		} else if (nunchuk.analogX < 127) {
+			// rotate
+			moveServo(servoRot, widgetRot, 0, (127 - nunchuk.analogX) / NUNCHUK_SWEEP_SCALE, false, true);
+			Serial.print("less\n");
+		} else {
+			moveServo(servoRot, widgetRot, 180, (nunchuk.analogX - 127) / NUNCHUK_SWEEP_SCALE, false, true);
+			Serial.print("more\n");
+		}
+		if (nunchukControlIsDeadzone(nunchuk.analogY)) {
+			moveServo(servoL, widgetL, servoL.read(), 10, true, true);
+			moveServo(servoR, widgetR, servoR.read(), 10, true, true);
+		}
 	}
 }
 
