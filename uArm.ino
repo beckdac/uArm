@@ -261,15 +261,19 @@ void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDispl
 // nunchuk
 ArduinoNunchuk nunchuk = ArduinoNunchuk();
 bool nunchukControlMode = false;
+bool nunchukControlJustEntered = false;
+bool nunchukControlJustExited = false;
 
 void nunchukControlModeToggle(void) {
 	nunchukControlMode = !nunchukControlMode;
 	if (nunchukControlMode) {
 		sendMsgF(MSG_NCM_ON);
 		messageScrollSet("nunchuk control on");
+		nunchukControlJustEntered = true;
 	} else {
 		sendMsgF(MSG_NCM_OFF);
 		messageScrollSet("nunchuk control off");
+		nunchukControlJustExited = true;
 	}
 	messageScrollUpdate(true);
 }
@@ -277,8 +281,15 @@ void nunchukControlModeToggle(void) {
 void nunchukControlModeUpdate() {
 	nunchuk.update();
 	// the Z-Button disables nunchukcontrolmode
+	// but only if we didn't just enable it
+	//	i.e. it is still pressed from enabling the mode
 	if (nunchuk.zButton)
-		nunchukControlModeToggle();
+		if (!nunchukControlJustEntered && !nunchukControlJustExited)
+			nunchukControlModeToggle();
+	else  {
+		nunchukControlJustEntered = false;
+		nunchukControlJustExited = false;
+	}
 }
 
 void nunchukControlModeSendValues(void) {
@@ -860,6 +871,7 @@ char buf[MAX_CMD_LEN + 1], c;
 bool suspendStore = false;
 uint8_t cidx = 0;
 uint8_t len = 0;
+#define CYCLES_RESET_COUNT 120
 uint8_t cycles = 0;
 
 void loop() {
@@ -899,11 +911,12 @@ void loop() {
 		if (cycles == 0)
 			messageScrollUpdate(true);
 		cycles++;
-		if (cycles == 120)
+		if (cycles == CYCLES_RESET_COUNT)
 			cycles = 0;
 
 		// if we are in the nunchuk control mode 
-		if (nunchukControlMode)
+		// or once per CYCLES_RESET_COUNT cycles check for a Z-button press
+		if (nunchukControlMode || cycles == 0)
 			nunchukControlModeUpdate();
 	}
 }
