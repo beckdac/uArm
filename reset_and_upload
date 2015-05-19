@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ $# -eq 2 ]; then
+	host=$1
+	hex=$2
+else
+	echo "usage: $0 <host> <hex file>"
+	exit 1
+fi
+
+if [ ! -e $hex ]
+then
+	echo "unable to find hex file $hex"
+	exit 1
+fi
+
+./reset $host 
+./net_upload $host $hex

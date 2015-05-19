@@ -1,0 +1,12 @@
+#!/usr/bin/expect
+set timeout 20
+set hostName [lindex $argv 0]
+
+spawn telnet $hostName
+
+expect "'^]'."
+send "\r"
+send "M101\r"
+expect "OK"
+send "+++AT GPIO2 2 100\r"
+expect "RESET"
