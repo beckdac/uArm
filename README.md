@@ -3,7 +3,11 @@ LiteArm / uArm
 
 LiteArm / uArm firmware for the MicroView + esp8266 enabled control board: https://github.com/beckdac/uArm-MicroView-esp8266
 
-Supports nunchuk control mode where a Wii Nunchuk conneted via I2C can be used to control the arm.  Enabled with the M576 commonad or pushing and holding Z-until the display changess and disabled by sending the M576 command again or hitting the Z-button on the Nunchuk.
+Supports nunchuk control mode where a Wii Nunchuk conneted via I2C can be used to control the arm.
+* Enabled with the M576 command
+* Disabled by sending the M576 command again or hitting the Z-button on the Nunchuk
+* The X direction on the analog thumbstick controls the rotation of the base
+* The Y direction on the analog stick controls the L or R servo depending on the state of the C-button.
 
 ```
 /*
