@@ -259,6 +259,10 @@ void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDispl
 }
 
 // nunchuk
+#define NUNCHUK_DEADZONE 5
+#define NUNCHUK_SWEEP_SCALE DEFAULT_SERVO_SWEEP_SPEED * 2
+#define NUNCHUK_SWEEP_INCREMENT 5
+
 ArduinoNunchuk nunchuk = ArduinoNunchuk();
 bool nunchukControlMode = false;
 
@@ -274,13 +278,27 @@ void nunchukControlModeToggle(void) {
 	messageScrollUpdate(true);
 }
 
-#define NUNCHUK_DEADZONE 5
-bool nunchukControlIsDeadzone(int x) {
-	if (x >= 127 - NUNCHUK_DEADZONE && x <= 127 + NUNCHUK_DEADZONE)
-		return true;
-	return false;
+#define nunchukControlIsDeadzone(x) (x >= 127 - NUNCHUK_DEADZONE && x <= 127 + NUNCHUK_DEADZONE ? true : false)
+void nunchukControlServo(VarSpeedServo &servo, uint8_t servoIndex, MicroViewWidget *widget, uint8_t reading) {
+	uint8_t pos, min_or_max;
+	uint8_t speed;
+
+	if (reading > 127) {
+		min_or_max = config.servoSafe[servoIndex].max;
+		pos = servo.read() + map(reading, 127, 255, 1, NUNCHUK_SWEEP_INCREMENT);
+		pos = (pos < min_or_max ? pos : min_or_max);
+		speed = map(reading, 127, 255, 0, NUNCHUK_SWEEP_SCALE);
+	} else {
+		min_or_max = config.servoSafe[servoIndex].min;
+		pos = servo.read() - map(reading, 127, 0, 1, NUNCHUK_SWEEP_INCREMENT);
+		pos = (pos > min_or_max ? pos : min_or_max);
+		speed = map(reading, 127, 0, 0, NUNCHUK_SWEEP_SCALE);
+	}
+
+	// should this wait or not?
+	//moveServo(servo, widget, pos, speed, true, true);
+	moveServo(servo, widget, pos, speed, false, true);
 }
-#define NUNCHUK_SWEEP_SCALE DEFAULT_SERVO_SWEEP_SPEED * 2
 
 void nunchukControlModeUpdate() {
 	uint8_t pos;
@@ -293,37 +311,23 @@ void nunchukControlModeUpdate() {
 	else  {
 		if (!nunchukControlMode)
 			return;
-		// if the stick is centered, hold the current position
+
+		// handle X
 		if (nunchukControlIsDeadzone(nunchuk.analogX)) {
-			moveServo(servoRot, widgetRot, servoRot.read(), DEFAULT_SERVO_SWEEP_SPEED, false, true);
-		} else if (nunchuk.analogX < 127) {
-			// rotate
-			pos = config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min;
-			moveServo(servoRot, widgetRot, 30, map(nunchuk.analogX, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
-			//moveServo(servoRot, widgetRot, 30, DEFAULT_SERVO_SWEEP_SPEED, false, true);
+			moveServo(servoRot, widgetRot, servoRot.read(), DEFAULT_SERVO_SWEEP_SPEED, true, true);
 		} else {
-			pos = config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max;
-			moveServo(servoRot, widgetRot, 120, map(nunchuk.analogX, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
-			//moveServo(servoRot, widgetRot, 120, DEFAULT_SERVO_SWEEP_SPEED, false, true);
+			nunchukControlServo(servoRot, EEPROM_CONFIG_SERVO_ROT, widgetRot, nunchuk.analogX);
 		}
+
+		// handle Y
 		if (nunchukControlIsDeadzone(nunchuk.analogY)) {
-			moveServo(servoL, widgetL, servoL.read(), DEFAULT_SERVO_SWEEP_SPEED, true, true);
+			moveServo(servoL, widgetL, servoL.read(), DEFAULT_SERVO_SWEEP_SPEED, false, true);
 			moveServo(servoR, widgetR, servoR.read(), DEFAULT_SERVO_SWEEP_SPEED, true, true);
-		} else if (nunchuk.analogY < 127) {
-			if (nunchuk.cButton) {
-				pos = config.servoSafe[EEPROM_CONFIG_SERVO_R].min;
-				moveServo(servoR, widgetR, pos, map(nunchuk.analogY, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
-			} else {
-				pos = config.servoSafe[EEPROM_CONFIG_SERVO_L].min;
-				moveServo(servoL, widgetL, pos, map(nunchuk.analogY, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
-			}
 		} else {
 			if (nunchuk.cButton) {
-				pos = config.servoSafe[EEPROM_CONFIG_SERVO_R].max;
-				moveServo(servoR, widgetR, pos, map(nunchuk.analogY, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
+				nunchukControlServo(servoR, EEPROM_CONFIG_SERVO_R, widgetR, nunchuk.analogY);
 			} else {
-				pos = config.servoSafe[EEPROM_CONFIG_SERVO_L].max;
-				moveServo(servoL, widgetL, pos, map(nunchuk.analogY, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
+				nunchukControlServo(servoL, EEPROM_CONFIG_SERVO_L, widgetL, nunchuk.analogY);
 			}
 		}
 	}
