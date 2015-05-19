@@ -14,5 +14,14 @@ then
 	exit 1
 fi
 
-./reset $host 
-./net_upload $host $hex
+/usr/bin/expect << EOF
+set timeout 20
+
+spawn telnet $host
+
+expect "'^]'."
+send "+++AT GPIO2 2 100\r"
+expect "RESET"
+EOF
+
+avrdude -v -v -c avrisp -p m328p -P net:$host:23 -F -U flash:w:$hex:i
