@@ -261,19 +261,15 @@ void moveServoH(uint8_t degrees, uint8_t servoSpeed, bool wait, bool updateDispl
 // nunchuk
 ArduinoNunchuk nunchuk = ArduinoNunchuk();
 bool nunchukControlMode = false;
-bool nunchukControlJustEntered = false;
-bool nunchukControlJustExited = false;
 
 void nunchukControlModeToggle(void) {
 	nunchukControlMode = !nunchukControlMode;
 	if (nunchukControlMode) {
 		sendMsgF(MSG_NCM_ON);
 		messageScrollSet("NCM+");
-		nunchukControlJustEntered = true;
 	} else {
 		sendMsgF(MSG_NCM_OFF);
 		messageScrollSet("NCM-");
-		nunchukControlJustExited = true;
 	}
 	messageScrollUpdate(true);
 }
@@ -284,38 +280,51 @@ bool nunchukControlIsDeadzone(int x) {
 		return true;
 	return false;
 }
-#define NUNCHUK_SWEEP_SCALE DEFAULT_SERVO_SWEEP_SPEED / 2
+#define NUNCHUK_SWEEP_SCALE DEFAULT_SERVO_SWEEP_SPEED * 2
 
 void nunchukControlModeUpdate() {
-	nunchuk.update();
-	// the Z-Button disables nunchukcontrolmode
-	// but only if we didn't just enable it
-	//	i.e. it is still pressed from enabling the mode
-	if (nunchuk.zButton)
-		if (!nunchukControlJustEntered && !nunchukControlJustExited)
-			nunchukControlModeToggle();
-	else  {
-		nunchukControlJustEntered = false;
-		nunchukControlJustExited = false;
+	uint8_t pos;
 
-		Serial.print("update\n");
+	nunchuk.update();
+
+	// the Z-Button disables nunchukcontrolmode
+	if (nunchuk.zButton)
+		nunchukControlModeToggle();
+	else  {
 		if (!nunchukControlMode)
 			return;
 		// if the stick is centered, hold the current position
 		if (nunchukControlIsDeadzone(nunchuk.analogX)) {
-			moveServo(servoRot, widgetRot, servoRot.read(), 10, false, true);
-			Serial.print("deadzone\n");
+			moveServo(servoRot, widgetRot, servoRot.read(), DEFAULT_SERVO_SWEEP_SPEED, false, true);
 		} else if (nunchuk.analogX < 127) {
 			// rotate
-			moveServo(servoRot, widgetRot, 0, (127 - nunchuk.analogX) / NUNCHUK_SWEEP_SCALE, false, true);
-			Serial.print("less\n");
+			pos = config.servoSafe[EEPROM_CONFIG_SERVO_ROT].min;
+			moveServo(servoRot, widgetRot, 30, map(nunchuk.analogX, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			//moveServo(servoRot, widgetRot, 30, DEFAULT_SERVO_SWEEP_SPEED, false, true);
 		} else {
-			moveServo(servoRot, widgetRot, 180, (nunchuk.analogX - 127) / NUNCHUK_SWEEP_SCALE, false, true);
-			Serial.print("more\n");
+			pos = config.servoSafe[EEPROM_CONFIG_SERVO_ROT].max;
+			moveServo(servoRot, widgetRot, 120, map(nunchuk.analogX, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			//moveServo(servoRot, widgetRot, 120, DEFAULT_SERVO_SWEEP_SPEED, false, true);
 		}
 		if (nunchukControlIsDeadzone(nunchuk.analogY)) {
-			moveServo(servoL, widgetL, servoL.read(), 10, true, true);
-			moveServo(servoR, widgetR, servoR.read(), 10, true, true);
+			moveServo(servoL, widgetL, servoL.read(), DEFAULT_SERVO_SWEEP_SPEED, true, true);
+			moveServo(servoR, widgetR, servoR.read(), DEFAULT_SERVO_SWEEP_SPEED, true, true);
+		} else if (nunchuk.analogY < 127) {
+			if (nunchuk.cButton) {
+				pos = config.servoSafe[EEPROM_CONFIG_SERVO_R].min;
+				moveServo(servoR, widgetR, pos, map(nunchuk.analogY, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			} else {
+				pos = config.servoSafe[EEPROM_CONFIG_SERVO_L].min;
+				moveServo(servoL, widgetL, pos, map(nunchuk.analogY, 127, 0, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			}
+		} else {
+			if (nunchuk.cButton) {
+				pos = config.servoSafe[EEPROM_CONFIG_SERVO_R].max;
+				moveServo(servoR, widgetR, pos, map(nunchuk.analogY, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			} else {
+				pos = config.servoSafe[EEPROM_CONFIG_SERVO_L].max;
+				moveServo(servoL, widgetL, pos, map(nunchuk.analogY, 127, 255, 0, NUNCHUK_SWEEP_SCALE), false, true);
+			}
 		}
 	}
 }
@@ -942,9 +951,8 @@ void loop() {
 		if (cycles == CYCLES_RESET_COUNT)
 			cycles = 0;
 
-		// if we are in the nunchuk control mode 
-		// or once per CYCLES_RESET_COUNT cycles check for a Z-button press
-		if (nunchukControlMode || cycles == 0)
+		// if we are in the nunchuk control mode run the update code
+		if (nunchukControlMode)
 			nunchukControlModeUpdate();
 	}
 }
